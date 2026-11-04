@@ -53,7 +53,8 @@ class SiteManager:
     def write_conf(self, name: str, text: str) -> Path:
         path = self.conf_path(name)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8", newline="")
+        with path.open("w", encoding="utf-8", newline="") as f:
+            f.write(text)
         return path
 
     # ---------- 增删改 ----------
@@ -119,6 +120,7 @@ class SiteManager:
         (self.sites_dir / name / "site.json").write_text(
             json.dumps(site, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+
 
     @staticmethod
     def _check_name(name: str) -> str:
@@ -189,7 +191,8 @@ http {{
 }}
 """
         path = conf_dir / "nginx.conf"
-        path.write_text(text, encoding="utf-8")
+        with path.open("w", encoding="utf-8", newline="") as f:
+            f.write(text)
         (self.nginx_dir / "logs").mkdir(parents=True, exist_ok=True)
         return path
 
