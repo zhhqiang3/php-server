@@ -60,17 +60,21 @@ def test_extension_filter_count(qapp, sandbox, fake_php, page):
 
 
 def test_extension_state_highlight(qapp, sandbox, fake_php, page):
+    """开关的开关状态要直观：文字 + state 属性。"""
     page.refresh()
     _select(page, "8.3.36")
     editor = IniEditor()
     editor.set_extension("8.3.36", "curl", True)
     page.refresh()
-    state, _row = page._ext_widgets["curl"]
-    assert "已启用" in state.text()
-    assert "color" in state.styleSheet()
+    sw, _row = page._ext_widgets["curl"]
+    assert sw.isChecked() is True
+    assert sw.text() == "已启用"
+    assert sw.property("state") == "on"
 
-    off_state, _ = page._ext_widgets["gd"]
-    assert "未启用" in off_state.text()
+    off_sw, _ = page._ext_widgets["gd"]
+    assert off_sw.isChecked() is False
+    assert off_sw.text() == "未启用"
+    assert off_sw.property("state") == "off"
 
 
 def test_raw_search_reports_hits(qapp, sandbox, fake_php, page):

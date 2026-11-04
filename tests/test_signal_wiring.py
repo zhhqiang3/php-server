@@ -93,17 +93,16 @@ CASES = {
         assert "处" in bars[0].count.text(), bars[0].count.text()
         print("OK")
     """,
-    "扩展下拉切换触发样式更新": """
-        from PyQt6.QtWidgets import QComboBox
+    "扩展开关切换触发样式更新": """
         win.show_ini("8.4.27")
         app.processEvents()
-        boxes = win.ini_page._ext_boxes
-        assert boxes, "没有扩展下拉"
-        name, box = next(iter(boxes.items()))
-        box.setCurrentIndex(1)
+        sws = win.ini_page._ext_boxes
+        assert sws, "没有扩展开关"
+        name, sw = next(iter(sws.items()))
+        sw.setChecked(True)
         app.processEvents()
-        state = win.ini_page._ext_widgets[name][0]
-        assert "已启用" in state.text(), state.text()
+        assert sw.text() == "已启用", sw.text()
+        assert sw.property("state") == "on"
         print("OK")
     """,
 }

@@ -22,3 +22,6 @@ dist/
 # 编辑器
 .vscode/
 .idea/
+
+# 离屏截图产物
+shots/

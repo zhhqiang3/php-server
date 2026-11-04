@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -21,9 +21,7 @@ from PyQt6.QtWidgets import (
 
 from core.ini_editor import COMMON_SETTINGS, EXTENSIONS, IniEditor, Setting
 from core.php_manager import PHPManager
-
-_ON_STYLE = "QLabel { color: #2ecc71; font-weight: bold; }"
-_OFF_STYLE = "QLabel { color: #888; }"
+from gui.ui import PageHeader, Switch, primary
 
 _HIGHLIGHT = QTextCharFormat()
 _HIGHLIGHT.setBackground(QColor(255, 200, 0, 90))
@@ -81,22 +79,19 @@ class IniPage(QWidget):
         self.php = php
         self.editor = IniEditor()
         self._rows: dict[str, _SettingRow] = {}
-        self._ext_widgets: dict[str, tuple[QLabel, QLabel]] = {}  # name -> (状态标签, 行容器)
+        self._ext_widgets: dict[str, tuple[Switch, QWidget]] = {}  # name -> (开关, 行容器)
 
         self.version = QComboBox()
         self.version.setMinimumWidth(140)
         self.version.currentTextChanged.connect(self.refresh)
         reload_btn = QPushButton("重新读取")
         reload_btn.clicked.connect(self.refresh)
-        back_btn = QPushButton("返回 PHP 列表")
-        back_btn.clicked.connect(lambda: self.closed.emit())
 
-        top = QHBoxLayout()
-        top.addWidget(QLabel("版本"))
-        top.addWidget(self.version)
-        top.addWidget(reload_btn)
-        top.addStretch(1)
-        top.addWidget(back_btn)
+        # --- 标题栏：面包屑返回 + 版本切换 ---
+        self.header = PageHeader("php.ini 配置", "常用设置、扩展开关与原始文本")
+        self.header.set_breadcrumb("PHP 版本列表", lambda: self.closed.emit())
+        self.header.add_action(self.version)
+        self.header.add_action(reload_btn)
 
         tabs = QTabWidget()
         tabs.addTab(self._build_common_tab(), "常用设置")
@@ -104,7 +99,9 @@ class IniPage(QWidget):
         tabs.addTab(self._build_raw_tab(), "原始文本")
 
         layout = QVBoxLayout(self)
-        layout.addLayout(top)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(10)
+        layout.addWidget(self.header)
         layout.addWidget(tabs, 1)
 
     def show_version(self, version: str) -> None:
@@ -115,23 +112,31 @@ class IniPage(QWidget):
             self.version.setCurrentIndex(idx)
         else:
             self._reload()
+        self.header.set_subtitle(f"正在编辑 PHP {version} 的 php.ini")
 
     def _build_common_tab(self) -> QWidget:
         form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
+        form.setHorizontalSpacing(18)
+        form.setVerticalSpacing(10)
         for setting in COMMON_SETTINGS:
             row = _SettingRow(setting)
             self._rows[setting.key] = row
             wrap = QWidget()
             line = QHBoxLayout(wrap)
             line.setContentsMargins(0, 0, 0, 0)
-            line.addWidget(row.box, 1)
+            line.setSpacing(10)
+            line.addWidget(row.box, 0)
             if setting.hint:
                 hint = QLabel(setting.hint)
                 hint.setStyleSheet("color: #888;")
                 line.addWidget(hint, 1)
+            else:
+                line.addStretch(1)
             form.addRow(setting.label, wrap)
 
-        save_btn = QPushButton("保存常用设置")
+        save_btn = primary("保存常用设置")
         save_btn.clicked.connect(self.save_common)
         reset_btn = QPushButton("恢复为文件中的值")
         reset_btn.clicked.connect(self.refresh)
@@ -143,56 +148,60 @@ class IniPage(QWidget):
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(16, 16, 16, 16)
         content_layout.addLayout(form)
+        content_layout.addSpacing(8)
         content_layout.addLayout(buttons)
         content_layout.addStretch(1)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setWidget(content)
         return scroll
 
     def _build_ext_tab(self) -> QWidget:
         self._ext_search = _SearchBar("筛选扩展（如 mysql、gd）…", self._filter_extensions)
-        self._ext_boxes: dict[str, QComboBox] = {}
+        self._ext_boxes: dict[str, Switch] = {}
 
         form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        form.setHorizontalSpacing(18)
+        form.setVerticalSpacing(8)
         self._ext_rows: dict[str, QWidget] = {}
         for ext in EXTENSIONS:
-            box = QComboBox()
-            box.addItems(["未启用", "已启用"])
-            box.setToolTip(ext.note or ext.dll)
-            self._ext_boxes[ext.name] = box
-
-            state = QLabel("未启用")
-            state.setStyleSheet(_OFF_STYLE)
-            state.setMinimumWidth(52)
-            box.currentIndexChanged.connect(
-                lambda _i, s=state: self._style_ext_state(s, _i)
-            )
+            sw = Switch()
+            sw.setToolTip(ext.note or ext.dll)
+            sw.toggled.connect(lambda _on, e=ext.name: self._toggle_ext(e, _on))
+            self._ext_boxes[ext.name] = sw
 
             name = QLabel(ext.name + (f"（{ext.note}）" if ext.note else ""))
             row = QWidget()
             line = QHBoxLayout(row)
             line.setContentsMargins(0, 0, 0, 0)
-            line.addWidget(state)
-            line.addWidget(box)
-            self._ext_widgets[ext.name] = (state, row)
+            line.setSpacing(10)
+            line.addWidget(sw)
+            line.addStretch(1)
+            self._ext_widgets[ext.name] = (sw, row)
             self._ext_rows[ext.name] = row
             form.addRow(name, row)
 
-        save_btn = QPushButton("保存扩展开关")
+        save_btn = primary("保存扩展开关")
         save_btn.clicked.connect(self.save_extensions)
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(16, 16, 16, 16)
+        content_layout.setSpacing(12)
         content_layout.addWidget(self._ext_search)
         content_layout.addLayout(form)
+        content_layout.addSpacing(8)
         content_layout.addWidget(save_btn)
         content_layout.addStretch(1)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll.setWidget(content)
         return scroll
 
@@ -204,7 +213,7 @@ class IniPage(QWidget):
 
         self._raw_search = _SearchBar("搜索（如 memory_limit）…", self._search_raw)
 
-        save_btn = QPushButton("保存（自动备份）")
+        save_btn = primary("保存（自动备份）")
         save_btn.clicked.connect(self.save_raw)
 
         buttons = QHBoxLayout()
@@ -213,20 +222,12 @@ class IniPage(QWidget):
 
         box = QWidget()
         layout = QVBoxLayout(box)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
         layout.addWidget(self._raw_search)
         layout.addWidget(self.text, 1)
         layout.addLayout(buttons)
         return box
-
-    @staticmethod
-    def _style_ext_state(label: QLabel, index: int) -> None:
-        if index == 1:
-            label.setText("● 已启用")
-            label.setStyleSheet(_ON_STYLE)
-        else:
-            label.setText("未启用")
-            label.setStyleSheet(_OFF_STYLE)
 
     def _filter_extensions(self, text: str, _nav=None) -> None:
         needle = text.strip().lower()
@@ -314,13 +315,11 @@ class IniPage(QWidget):
                 row.box.setCurrentIndex(row.box.count() - 1)
             row.box.blockSignals(False)
 
-        for name, box in self._ext_boxes.items():
+        for name, sw in self._ext_boxes.items():
             enabled = self.editor.extension_enabled(text, name)
-            state, _row = self._ext_widgets[name]
-            box.blockSignals(True)
-            box.setCurrentIndex(1 if enabled else 0)
-            box.blockSignals(False)
-            self._style_ext_state(state, box.currentIndex())
+            sw.blockSignals(True)
+            sw.setChecked(enabled)
+            sw.blockSignals(False)
 
     # ---------- 保存 ----------
 
@@ -353,8 +352,8 @@ class IniPage(QWidget):
             return
         enabled_now = self.editor.enabled_extensions(version)
         toggled: list[tuple[str, bool]] = []
-        for name, box in self._ext_boxes.items():
-            want = box.currentIndex() == 1
+        for name, sw in self._ext_boxes.items():
+            want = sw.isChecked()
             if want != (name in enabled_now):
                 toggled.append((name, want))
         if not toggled:

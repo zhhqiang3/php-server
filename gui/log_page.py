@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 
 from core.log_manager import LogFile, nginx_logs, php_log_hint, php_logs
 from core.php_manager import PHPManager
+from gui.ui import PageHeader, danger
 
 
 class LogPage(QWidget):
@@ -46,7 +47,7 @@ class LogPage(QWidget):
 
         open_btn = QPushButton("打开所在目录")
         open_btn.clicked.connect(self.open_dir)
-        clear_btn = QPushButton("清空此日志")
+        clear_btn = danger("清空此日志", "清空后不可恢复")
         clear_btn.clicked.connect(self.clear_log)
         copy_btn = QPushButton("复制全部")
         copy_btn.clicked.connect(self.copy_all)
@@ -62,11 +63,12 @@ class LogPage(QWidget):
         self.text.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
 
         top = QHBoxLayout()
-        top.addWidget(QLabel("日志"))
+        top.setSpacing(8)
         top.addWidget(self.source, 1)
         top.addWidget(reload_btn)
 
         controls = QHBoxLayout()
+        controls.setSpacing(8)
         controls.addWidget(self.follow)
         controls.addWidget(QLabel("间隔"))
         controls.addWidget(self.interval)
@@ -74,7 +76,13 @@ class LogPage(QWidget):
         for b in (open_btn, clear_btn, copy_btn):
             controls.addWidget(b)
 
+        self.header = PageHeader("日志", "Nginx 与 PHP 的运行日志")
+        self.header.add_action(reload_btn)
+
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(10)
+        layout.addWidget(self.header)
         layout.addLayout(top)
         layout.addLayout(controls)
         layout.addWidget(self.hint)

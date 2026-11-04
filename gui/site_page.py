@@ -27,6 +27,7 @@ from core.nginx_manager import NginxManager
 from core.php_manager import PHPManager
 from core.site_manager import SiteManager, cgi_port_for
 from gui.site_dialog import SiteDialog
+from gui.ui import PageHeader, danger, primary
 
 
 class SitePage(QWidget):
@@ -47,18 +48,19 @@ class SitePage(QWidget):
         self.table.itemSelectionChanged.connect(self._load_selected)
         self.table.doubleClicked.connect(self.edit)
 
-        add_btn = QPushButton("新增站点…")
+        add_btn = primary("新增站点…")
         add_btn.clicked.connect(self.add)
         edit_btn = QPushButton("编辑…")
         edit_btn.clicked.connect(self.edit)
-        del_btn = QPushButton("删除所选")
+        del_btn = danger("删除所选")
         del_btn.clicked.connect(self.remove)
         open_btn = QPushButton("打开")
         open_btn.setToolTip("用默认浏览器打开选中的站点")
         open_btn.clicked.connect(self.open_site)
 
         buttons = QHBoxLayout()
-        for b in (add_btn, edit_btn, del_btn, open_btn):
+        buttons.setSpacing(8)
+        for b in (edit_btn, open_btn, del_btn):
             buttons.addWidget(b)
         buttons.addStretch(1)
 
@@ -68,7 +70,7 @@ class SitePage(QWidget):
         self.conf = QTextEdit()
         self.conf.setFontFamily("Consolas")
         self.conf.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
-        save_conf_btn = QPushButton("保存配置")
+        save_conf_btn = primary("保存配置")
         save_conf_btn.clicked.connect(self.save_conf)
         reload_conf_btn = QPushButton("重新读取")
         reload_conf_btn.clicked.connect(self._load_selected)
@@ -78,6 +80,7 @@ class SitePage(QWidget):
         test_btn.clicked.connect(self.test_config)
 
         conf_buttons = QHBoxLayout()
+        conf_buttons.setSpacing(8)
         for b in (save_conf_btn, reload_conf_btn, regen_btn, test_btn):
             conf_buttons.addWidget(b)
         conf_buttons.addStretch(1)
@@ -85,12 +88,13 @@ class SitePage(QWidget):
         conf_box = QWidget()
         conf_layout = QVBoxLayout(conf_box)
         conf_layout.setContentsMargins(0, 0, 0, 0)
+        conf_layout.setSpacing(10)
         conf_layout.addWidget(self.conf_title)
         conf_layout.addWidget(self.conf, 1)
         conf_layout.addLayout(conf_buttons)
 
         # --- Nginx / php-cgi 控制 ---
-        start_btn = QPushButton("启动 Nginx")
+        start_btn = primary("启动 Nginx")
         start_btn.clicked.connect(self.start)
         stop_btn = QPushButton("停止 Nginx")
         stop_btn.clicked.connect(self.stop)
@@ -101,16 +105,37 @@ class SitePage(QWidget):
         self.cgi_info = QLabel("php-cgi：未运行")
         self.cgi_info.setStyleSheet("color: #888;")
 
-        controls = QHBoxLayout()
+        nginx_group = QHBoxLayout()
+        nginx_group.setSpacing(8)
+        nginx_group.addWidget(_group_label("Nginx"))
         for b in (start_btn, stop_btn, reload_btn):
-            controls.addWidget(b)
+            nginx_group.addWidget(b)
+
+        cgi_group = QHBoxLayout()
+        cgi_group.setSpacing(8)
+        cgi_group.addWidget(_group_label("php-cgi"))
+        for label, slot in (
+            ("启动", self.start_cgi),
+            ("重启", self.restart_cgi),
+            ("停止", self.stop_cgi),
+        ):
+            btn = QPushButton(label)
+            btn.clicked.connect(slot)
+            cgi_group.addWidget(btn)
+
+        controls = QHBoxLayout()
+        controls.setSpacing(16)
+        controls.addLayout(nginx_group)
         controls.addWidget(self.cgi_check)
+        controls.addSpacing(8)
+        controls.addLayout(cgi_group)
         controls.addStretch(1)
         controls.addWidget(self.cgi_info)
 
         left = QWidget()
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(10)
         left_layout.addWidget(self.table, 1)
         left_layout.addLayout(buttons)
 
@@ -119,10 +144,16 @@ class SitePage(QWidget):
         split.addWidget(conf_box)
         split.setSizes([520, 460])
 
+        # 标题栏右侧放「新增站点」，列表下方留行内操作
+        self.header = PageHeader("站点", "本地 Nginx 站点、域名与 PHP 版本")
+        self.header.add_action(add_btn)
+
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(10)
+        layout.addWidget(self.header)
         layout.addWidget(split, 1)
         layout.addLayout(controls)
-        layout.addLayout(self._cgi_buttons())
         self.refresh()
 
     # ---------- 列表 ----------
@@ -398,18 +429,12 @@ class SitePage(QWidget):
         self._update_cgi_info()
         self.window().statusBar().showMessage("php-cgi 已停止", 5000)
 
-    def _cgi_buttons(self) -> QHBoxLayout:
-        row = QHBoxLayout()
-        for label, slot in (
-            ("启动 php-cgi", self.start_cgi),
-            ("重启 php-cgi", self.restart_cgi),
-            ("停止 php-cgi", self.stop_cgi),
-        ):
-            btn = QPushButton(label)
-            btn.clicked.connect(slot)
-            row.addWidget(btn)
-        row.addStretch(1)
-        return row
+
+def _group_label(text: str) -> QLabel:
+    """控件分组的小标题。"""
+    label = QLabel(text)
+    label.setStyleSheet("color: #888; font-weight: 600;")
+    return label
 
 
 def _err(parent, title: str, exc: Exception) -> None:

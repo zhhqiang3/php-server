@@ -26,6 +26,17 @@ def save_appearance(theme: str, font_size: int) -> None:
     save_config(cfg)
 
 
+def is_dark(app: QApplication) -> bool:
+    """当前用的是不是深色底。"""
+    if current_theme() == "深色":
+        return True
+    if current_theme() == "浅色":
+        return False
+    from PyQt6.QtCore import Qt
+
+    return app.styleHints().colorScheme() == Qt.ColorScheme.Dark
+
+
 def apply_appearance(app: QApplication, theme: str = None, font_size: int = None) -> None:
     """设置全局字体与调色板。参数缺省时从配置读取。"""
     cfg = load_config().get("ui", {})
@@ -39,17 +50,21 @@ def apply_appearance(app: QApplication, theme: str = None, font_size: int = None
     app.setStyle("Fusion")
     if theme == "浅色":
         palette = _light_palette()
+        dark = False
     elif theme == "深色":
         palette = _dark_palette()
+        dark = True
     else:
         # 跟随系统：由 Qt 判断深浅
         from PyQt6.QtCore import Qt
 
-        if app.styleHints().colorScheme() == Qt.ColorScheme.Dark:
-            palette = _dark_palette()
-        else:
-            palette = _light_palette()
+        dark = app.styleHints().colorScheme() == Qt.ColorScheme.Dark
+        palette = _dark_palette() if dark else _light_palette()
     app.setPalette(palette)
+
+    from gui.ui import build_stylesheet, header_style
+
+    app.setStyleSheet(build_stylesheet(dark) + header_style(dark))
 
 
 def _dark_palette() -> QPalette:

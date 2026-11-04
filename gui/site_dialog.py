@@ -96,6 +96,8 @@ class SiteDialog(QDialog):
         self.hint.setStyleSheet("color: #888;")
 
         form = QFormLayout()
+        form.setHorizontalSpacing(18)
+        form.setVerticalSpacing(10)
         form.addRow("名称", self.name)
         form.addRow("域名", host_row)
         form.addRow("端口", self.port)
@@ -112,13 +114,19 @@ class SiteDialog(QDialog):
             # 域名跟着站点名走：<名>.local
             self.name.textChanged.connect(self._sync_default_host)
 
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        ok_btn = QPushButton("确定" if current else "创建站点")
+        ok_btn.setProperty("role", "primary")
+        ok_btn.setDefault(True)
+        cancel_btn = QPushButton("取消")
+        buttons = QDialogButtonBox()
+        buttons.addButton(ok_btn, QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton(cancel_btn, QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self._save)
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(14)
         layout.addLayout(form)
         layout.addWidget(buttons)
         self.resize(500, self.sizeHint().height())

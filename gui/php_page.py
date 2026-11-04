@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 
 from core.ini_editor import EXTENSIONS, IniEditor
 from core.php_manager import PHPManager
+from gui.ui import PageHeader, danger, primary
 from gui.widgets import DownloadBar, DownloadTask
 
 
@@ -33,8 +34,6 @@ class PhpPage(QWidget):
         self.editor = IniEditor()
         self._modules_cache: dict[str, list[str]] = {}
 
-        self.active = QLabel("当前版本：未选择")
-
         # --- 已安装 ---
         self.list = QTableWidget(0, 2)
         self.list.setHorizontalHeaderLabels(["版本", "php.ini"])
@@ -46,17 +45,19 @@ class PhpPage(QWidget):
         # 双击行 -> 打开该版本的 php.ini（doubleClicked 带 QModelIndex，要忽略）
         self.list.doubleClicked.connect(lambda _index: self.view_ini())
 
+        self.active = QLabel("当前版本：未选择")
+
         use_btn = QPushButton("设为当前版本")
         use_btn.clicked.connect(self.use)
-        ini_btn = QPushButton("查看配置…")
+        ini_btn = primary("查看配置…", "打开该版本的 php.ini 设置")
         ini_btn.clicked.connect(self.view_ini)
-        remove_btn = QPushButton("删除所选版本")
+        remove_btn = danger("删除所选版本")
         remove_btn.clicked.connect(self.remove)
         refresh_btn = QPushButton("刷新")
         refresh_btn.clicked.connect(self.refresh)
         actions = QHBoxLayout()
-        for b in (use_btn, ini_btn, remove_btn, refresh_btn):
-            actions.addWidget(b)
+        actions.setSpacing(8)
+        actions.addWidget(remove_btn)
         actions.addStretch(1)
 
         # --- 下载安装 ---
@@ -70,6 +71,7 @@ class PhpPage(QWidget):
         self.download = DownloadBar()
 
         row = QHBoxLayout()
+        row.setSpacing(8)
         row.addWidget(QLabel("主版本"))
         row.addWidget(self.major)
         row.addWidget(install_btn)
@@ -79,7 +81,7 @@ class PhpPage(QWidget):
         left = QWidget()
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.addWidget(self.active)
+        left_layout.setSpacing(10)
         left_layout.addWidget(self.list, 1)
         left_layout.addLayout(actions)
         left_layout.addWidget(note)
@@ -107,6 +109,7 @@ class PhpPage(QWidget):
         self.modules_info.setWordWrap(True)
         self.modules_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         mods_row = QHBoxLayout()
+        mods_row.setSpacing(8)
         mods_row.addWidget(QLabel("运行时模块（php -m）"))
         mods_row.addWidget(self.modules, 1)
         mods_row.addWidget(self.modules_info, 3)
@@ -116,12 +119,15 @@ class PhpPage(QWidget):
 
         info_tab = QWidget()
         info_layout = QVBoxLayout(info_tab)
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        info_layout.setSpacing(10)
         info_layout.addWidget(self.ext_table, 1)
         info_layout.addLayout(mods_row)
 
         detail = QWidget()
         detail_layout = QVBoxLayout(detail)
         detail_layout.setContentsMargins(0, 0, 0, 0)
+        detail_layout.setSpacing(10)
         detail_layout.addWidget(self.detail_title)
         detail_layout.addWidget(info_tab, 1)
 
@@ -129,7 +135,15 @@ class PhpPage(QWidget):
         tabs.addTab(left, "版本")
         tabs.addTab(detail, "依赖与扩展")
 
+        self.header = PageHeader("PHP", "已安装的版本、下载安装与依赖扩展")
+        self.header.add_action(self.active)
+        self.header.add_action(use_btn)
+        self.header.add_action(ini_btn)
+
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(10)
+        layout.addWidget(self.header)
         layout.addWidget(tabs, 1)
 
         self.refresh()

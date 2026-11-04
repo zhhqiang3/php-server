@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.nginx_manager import NginxManager
+from gui.ui import PageHeader, primary
 from gui.widgets import DownloadBar, DownloadTask
 
 
@@ -32,18 +33,20 @@ class NginxPage(QWidget):
         self.version_box.setMinimumWidth(160)
         refresh_btn = QPushButton("刷新版本列表")
         refresh_btn.clicked.connect(self.load_versions)
-        install_btn = QPushButton("下载并安装")
+        install_btn = primary("下载并安装")
         install_btn.clicked.connect(self.install)
 
         form = QFormLayout()
+        form.setHorizontalSpacing(18)
+        form.setVerticalSpacing(10)
         form.addRow("安装位置", self.path_label)
         version_row = QHBoxLayout()
+        version_row.setSpacing(8)
         version_row.addWidget(self.version_box, 1)
         version_row.addWidget(refresh_btn)
-        version_row.addWidget(install_btn)
         form.addRow("官网版本", version_row)
 
-        start_btn = QPushButton("启动")
+        start_btn = primary("启动")
         start_btn.clicked.connect(self.start)
         stop_btn = QPushButton("停止")
         stop_btn.clicked.connect(self.stop)
@@ -53,6 +56,7 @@ class NginxPage(QWidget):
         test_btn.clicked.connect(self.test_config)
 
         controls = QHBoxLayout()
+        controls.setSpacing(8)
         for b in (start_btn, stop_btn, reload_btn, test_btn):
             controls.addWidget(b)
         controls.addStretch(1)
@@ -63,7 +67,14 @@ class NginxPage(QWidget):
         self.log.setFontFamily("Consolas")
         self.log.setPlaceholderText("nginx -v / -t、启动错误等输出会显示在这里")
 
+        self.header = PageHeader("Nginx", "从官网下载一个 Windows 版并管理它的运行")
+        self.header.add_action(refresh_btn)
+        self.header.add_action(install_btn)
+
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(10)
+        layout.addWidget(self.header)
         layout.addWidget(self.state)
         layout.addLayout(form)
         layout.addWidget(self.download)

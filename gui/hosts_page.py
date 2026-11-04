@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.hosts_manager import HostsManager
+from gui.ui import PageHeader, danger, primary
 
 
 class HostsPage(QWidget):
@@ -24,33 +25,40 @@ class HostsPage(QWidget):
         super().__init__()
         self.mgr = HostsManager()
         self.ip = QLineEdit("127.0.0.1")
+        self.ip.setMaximumWidth(140)
         self.host = QLineEdit()
         self.list = QListWidget()
         self.raw = QTextEdit()
         self.raw.setReadOnly(True)
         self.raw.setFontFamily("Consolas")
 
-        add_btn = QPushButton("添加")
+        add_btn = primary("添加")
         add_btn.clicked.connect(self.add)
-        del_btn = QPushButton("删除所选")
+        del_btn = danger("删除所选")
         del_btn.clicked.connect(self.remove)
         refresh_btn = QPushButton("刷新")
         refresh_btn.clicked.connect(self.refresh)
 
         form = QHBoxLayout()
+        form.setSpacing(8)
         form.addWidget(QLabel("IP"))
         form.addWidget(self.ip)
         form.addWidget(QLabel("域名"))
         form.addWidget(self.host, 1)
         form.addWidget(add_btn)
         form.addWidget(del_btn)
-        form.addWidget(refresh_btn)
 
         split = QSplitter(Qt.Orientation.Vertical)
         split.addWidget(self.list)
         split.addWidget(self.raw)
 
+        self.header = PageHeader("Hosts", "系统 hosts 中由本工具管理的域名记录")
+        self.header.add_action(refresh_btn)
+
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(10)
+        layout.addWidget(self.header)
         layout.addLayout(form)
         layout.addWidget(split, 1)
         self.refresh()
