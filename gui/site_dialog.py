@@ -63,10 +63,15 @@ class SiteDialog(QDialog):
 
         self.port = QSpinBox()
         self.port.setRange(1, 65535)
-        # 新增默认 80；被占用时自动找下一个空闲端口
+        self._port_touched = False
+        self._setting_port = False
+        # 新增默认 80；同域名已占用 80 时才往后找
         self.port.setValue(
-            int(current.get("port", 0)) if current else sites.next_free_port(80)
+            int(current.get("port", 0))
+            if current
+            else sites.next_free_port(80, self._default_host())
         )
+        self.port.valueChanged.connect(self._mark_port_touched)
         self.root = QLineEdit(
             current.get("root", "") if current else str((ROOT / "data" / "www").resolve())
         )
@@ -125,6 +130,18 @@ class SiteDialog(QDialog):
 
     # ---------- 域名 ----------
 
+    def _default_host(self) -> str:
+        """新增时的默认域名：<站点名>.local。"""
+        if self.edit_name:
+            return ""
+        name = self.name.text().strip()
+        return f"{name}.local" if name else ""
+
+    def _mark_port_touched(self) -> None:
+        """用户手动改过端口后，不再自动调整。"""
+        if not self._setting_port:
+            self._port_touched = True
+
     def _toggle_ip(self, checked: bool) -> None:
         self.host.setEnabled(not checked)
         if checked:
@@ -140,7 +157,19 @@ class SiteDialog(QDialog):
             return
         if force or not self.host.text().strip() or self.host.text().endswith(".local"):
             self.host.setText(f"{name.strip()}.local" if name.strip() else "")
+        self._sync_port()
         self._update_hint()
+
+    def _sync_port(self) -> None:
+        """域名变了就重算建议端口：同域名已占用才往后找，不同域名可以共用端口。"""
+        if self.edit_name or self._port_touched:
+            return
+        host = self.host.text().strip()
+        self._setting_port = True
+        try:
+            self.port.setValue(self.sites.next_free_port(80, host))
+        finally:
+            self._setting_port = False
 
     def _update_hint(self) -> None:
         host = self.host.text().strip()

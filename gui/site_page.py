@@ -221,6 +221,19 @@ class SitePage(QWidget):
         text = re.sub(r"(#\s*php version:\s*)\S+", rf"\g<1>{site.get('php', '')}", text, count=1)
         self.sites.write_conf(name, text)
 
+    def regenerate_conf(self) -> None:
+        name = self._selected_name()
+        site = self.sites.get(name) if name else None
+        if site is None:
+            return
+        if (
+            QMessageBox.question(self, "重新生成", "将覆盖该站点手写的配置片段，继续？")
+            != QMessageBox.StandardButton.Yes
+        ):
+            return
+        self.sites.write_conf(name, self.sites.server_block(site))
+        self._load_selected()
+
     def remove(self) -> None:
         name = self._selected_name()
         if not name:
@@ -276,19 +289,6 @@ class SitePage(QWidget):
         self.sites.write_conf(name, self.conf.toPlainText())
         self.sites.write_nginx_conf()
         self.window().statusBar().showMessage("站点配置已保存，重载 Nginx 后生效", 5000)
-
-    def regenerate_conf(self) -> None:
-        name = self._selected_name()
-        site = self.sites.get(name) if name else None
-        if site is None:
-            return
-        if (
-            QMessageBox.question(self, "重新生成", "将覆盖该站点手写的配置片段，继续？")
-            != QMessageBox.StandardButton.Yes
-        ):
-            return
-        self.sites.write_conf(name, self.sites.server_block(site))
-        self._load_selected()
 
     # ---------- Nginx / php-cgi ----------
 

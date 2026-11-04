@@ -29,10 +29,19 @@ def test_add_rejects_duplicate_name(mgr, tmp_path):
         mgr.add("s1", "b.local", 8081, str(tmp_path / "w2"), "8.3.36")
 
 
-def test_add_rejects_duplicate_port(mgr, tmp_path):
+def test_add_allows_same_port_different_host(mgr, tmp_path):
+    """同一端口放不同域名是合法的：nginx 按 Host 头分发虚拟主机。"""
+    mgr.add("s1", "a.local", 8080, str(tmp_path / "w1"), "8.3.36")
+    site = mgr.add("s2", "b.local", 8080, str(tmp_path / "w2"), "8.3.36")
+    assert site["port"] == 8080
+    assert len(mgr.list_sites()) == 2
+
+
+def test_add_rejects_same_port_same_host(mgr, tmp_path):
+    """同端口 + 同域名才冲突（后者会被 nginx 忽略）。"""
     mgr.add("s1", "a.local", 8080, str(tmp_path / "w1"), "8.3.36")
     with pytest.raises(ValueError):
-        mgr.add("s2", "b.local", 8080, str(tmp_path / "w2"), "8.3.36")
+        mgr.add("s2", "a.local", 8080, str(tmp_path / "w2"), "8.3.36")
 
 
 def test_add_rejects_bad_name(mgr, tmp_path):
@@ -95,6 +104,39 @@ def test_write_nginx_conf_includes_each_site(mgr, tmp_path):
 def test_next_port_skips_used(mgr, tmp_path):
     mgr.add("s1", "a.local", 8080, str(tmp_path / "w1"), "8.3.36")
     assert mgr.next_port() == 8081
+
+
+def test_next_free_port_only_counts_same_host(mgr, tmp_path):
+    """别的域名占了 80 也不影响本域名用 80。"""
+    mgr.add("s1", "a.local", 80, str(tmp_path / "w1"), "8.3.36")
+    assert mgr.next_free_port(80, "b.local") == 80
+    assert mgr.next_free_port(80, "a.local") == 81
+
+
+def test_update_allows_same_port_different_host(mgr, tmp_path):
+    mgr.add("s1", "a.local", 8080, str(tmp_path / "w1"), "8.3.36")
+    site = mgr.update("s1", host="b.local")
+    assert site["port"] == 8080
+    assert site["host"] == "b.local"
+
+
+def test_update_rejects_same_port_same_host(mgr, tmp_path):
+    mgr.add("s1", "a.local", 8080, str(tmp_path / "w1"), "8.3.36")
+    mgr.add("s2", "b.local", 8081, str(tmp_path / "w2"), "8.3.36")
+    with pytest.raises(ValueError):
+        mgr.update("s2", host="a.local", port=8080)
+
+
+def test_update_port_conflict_checked_with_new_host(mgr, tmp_path):
+    """改端口时按新域名判断冲突。"""
+    mgr.add("s1", "a.local", 8080, str(tmp_path / "w1"), "8.3.36")
+    mgr.add("s2", "b.local", 8080, str(tmp_path / "w2"), "8.3.36")
+    # s2 改成 a.local + 8080 -> 冲突
+    with pytest.raises(ValueError):
+        mgr.update("s2", host="a.local")
+    # s2 改成 a.local + 8081 -> 不冲突
+    site = mgr.update("s2", host="a.local", port=8081)
+    assert site["host"] == "a.local"
 
 
 def test_hand_written_conf_survives_regeneration(mgr, tmp_path):

@@ -64,7 +64,7 @@ class SiteManager:
         folder = self.sites_dir / name
         if folder.exists():
             raise FileExistsError(f"站点 {name} 已存在")
-        self._check_port(port, exclude=name)
+        self._check_conflict(port, host, exclude=name)
         root_path = Path(root).expanduser()
         root_path.mkdir(parents=True, exist_ok=True)
         index = root_path / "index.php"
@@ -95,11 +95,12 @@ class SiteManager:
         site = self.get(name)
         if site is None:
             raise FileNotFoundError(f"站点 {name} 不存在")
-        if port is not None:
-            self._check_port(port, exclude=name)
-            site["port"] = int(port)
-        if host is not None:
-            site["host"] = host.strip() or "127.0.0.1"
+        new_host = host.strip() if host is not None else site["host"]
+        new_port = int(port) if port is not None else int(site["port"])
+        # 只在「同端口 + 同域名」时冲突；换了域名或换了端口都能共存
+        self._check_conflict(new_port, new_host, exclude=name)
+        site["host"] = new_host or "127.0.0.1"
+        site["port"] = new_port
         if root is not None:
             site["root"] = str(Path(root).expanduser())
         if php_version is not None:
@@ -129,12 +130,21 @@ class SiteManager:
             raise ValueError("站点名不合法")
         return name
 
-    def _check_port(self, port: int, exclude: str | None = None) -> None:
+    def _check_conflict(self, port: int, host: str, exclude: str | None = None) -> None:
+        """只有「同端口 + 同域名」才算冲突。
+
+        nginx 按 Host 请求头分发虚拟主机，所以同一端口上可以有多个不同域名的
+        站点；只有域名也一样时后一个 server 块会被 nginx 忽略。
+        """
+        want = (host or "").strip().lower()
         for s in self.list_sites():
             if s.get("name") == exclude:
                 continue
-            if int(s.get("port", 0)) == int(port):
-                raise ValueError(f"端口 {port} 已被站点 {s['name']} 使用")
+            if int(s.get("port", 0)) != int(port):
+                continue
+            other = str(s.get("host", "")).strip().lower()
+            if other == want:
+                raise ValueError(f"端口 {port} 上的域名 {host} 已被站点 {s['name']} 使用")
 
     # ---------- 配置生成 ----------
 
@@ -203,9 +213,18 @@ http {{
             port += 1
         return port
 
-    def next_free_port(self, preferred: int = 80) -> int:
-        """返回优先使用的端口；被占用时往下找第一个空闲端口。"""
-        used = {int(s["port"]) for s in self.list_sites()}
+    def next_free_port(self, preferred: int = 80, host: str = "") -> int:
+        """给站点建议端口：优先 preferred，只有同端口同域名被占用才往后找。
+
+        同一端口上放不同域名的站点是合法的（nginx 按 Host 头分发虚拟主机），
+        所以端口被别的域名占了并不算冲突。
+        """
+        want = (host or "").strip().lower()
+        used = {
+            int(s["port"])
+            for s in self.list_sites()
+            if str(s.get("host", "")).strip().lower() == want
+        }
         port = int(preferred)
         while port in used:
             port += 1

@@ -44,9 +44,15 @@ def test_new_dialog_host_follows_name(qapp, sandbox, fake_php, sites):
 
 
 def test_new_dialog_port_skips_used(qapp, sandbox, fake_php, sites):
+    """同域名已占用 80 才往后找；不同域名可以共用 80。"""
     sites.add("s1", "a.local", 80, str(sandbox / "w1"), "8.3.36")
     dlg = SiteDialog(None, sites, PHPManager())
+    dlg.name.setText("a")  # a.local 已被占用
     assert dlg.port.value() == 81
+
+    dlg2 = SiteDialog(None, sites, PHPManager())
+    dlg2.name.setText("b")  # b.local 没被占用
+    assert dlg2.port.value() == 80
 
 
 def test_use_ip_checkbox_fills_host(qapp, sandbox, fake_php, sites):
@@ -114,10 +120,24 @@ def test_save_creates_site(qapp, sandbox, fake_php, sites):
     assert sites.get("s1") is not None
 
 
-def test_save_duplicate_port_keeps_dialog_open(qapp, sandbox, fake_php, sites):
+def test_save_same_port_different_host_ok(qapp, sandbox, fake_php, sites, hosts_file):
+    """同端口不同域名：允许保存。"""
     sites.add("s1", "a.local", 8080, str(sandbox / "w1"), "8.3.36")
     dlg = SiteDialog(None, sites, PHPManager())
     dlg.name.setText("s2")
+    dlg.port.setValue(8080)
+    dlg.root.setText(str(sandbox / "w2"))
+    dlg._save()
+    assert dlg.result_site is not None
+    assert dlg.result_site["port"] == 8080
+
+
+def test_save_same_port_same_host_rejected(qapp, sandbox, fake_php, sites, hosts_file):
+    """同端口同域名：拒绝，弹窗不关闭。"""
+    sites.add("s1", "a.local", 8080, str(sandbox / "w1"), "8.3.36")
+    dlg = SiteDialog(None, sites, PHPManager())
+    dlg.name.setText("s2")
+    dlg.host.setText("a.local")
     dlg.port.setValue(8080)
     dlg.root.setText(str(sandbox / "w2"))
     dlg._save()
