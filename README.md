@@ -31,6 +31,15 @@ python gui/main.py
 
 改 hosts 需要管理员权限，否则写入会失败。
 
+## 打包成 exe
+
+```powershell
+pip install pyinstaller
+python -m PyInstaller php-server.spec --noconfirm --clean
+```
+
+产物在 `dist/php-server.exe`（单文件，约 39 MB）。exe 以它所在目录为根读写 `config/` 和 `data/`，所以放到哪个文件夹运行，PHP / Nginx / 站点就装在哪。
+
 ## 目录
 
 ```text

@@ -15,6 +15,10 @@ data/www/
 php.ini.bak-*
 hosts.bak-*
 
+# 打包产物
+build/
+dist/
+
 # 编辑器
 .vscode/
 .idea/
