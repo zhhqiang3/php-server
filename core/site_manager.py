@@ -204,8 +204,19 @@ http {{
         return port
 
 
+def cgi_port_for_version(version: str) -> int:
+    """每个 PHP 版本一个固定 fastcgi 端口：8.3.36 -> 9803（9000 + 主版本*100 + 次版本）。
+
+    多版本 PHP 各占一个端口，同版本的站点共用同一个 php-cgi 进程。
+    """
+    m = re.match(r"^(\d+)\.(\d+)", version.strip())
+    if not m:
+        return 9000
+    return 9000 + int(m.group(1)) * 100 + int(m.group(2))
+
+
 def cgi_port_for(site: dict) -> int:
-    """站点的 php-cgi 端口：site.json 里显式记了就用它，否则按站点端口推算。"""
+    """站点的 php-cgi 端口：site.json 里显式记了 cgi_port 就用它，否则按 PHP 版本推算。"""
     if site.get("cgi_port"):
         return int(site["cgi_port"])
-    return 9000 + (int(site.get("port", 8080)) % 1000)
+    return cgi_port_for_version(site.get("php") or "8.0")

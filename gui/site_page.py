@@ -117,6 +117,7 @@ class SitePage(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(split, 1)
         layout.addLayout(controls)
+        layout.addLayout(self._cgi_buttons())
         self.refresh()
 
     # ---------- 列表 ----------
@@ -244,6 +245,8 @@ class SitePage(QWidget):
     def start(self) -> None:
         try:
             if self.cgi_check.isChecked():
+                # 上次会话遗留的 php-cgi 会占着端口，先清掉
+                self.cgi.cleanup_stale()
                 for site in self.sites.list_sites():
                     self.cgi.start_site(site)
             self.nginx.start()
@@ -285,11 +288,55 @@ class SitePage(QWidget):
     def _update_cgi_info(self) -> None:
         ports = self.cgi.running_ports()
         if ports:
-            text = "php-cgi：" + "，".join(f"{v} :{p}" for v, p in ports)
+            text = "php-cgi：" + "，".join(f"{v} :{p}" for v, p in sorted(ports))
         else:
             text = "php-cgi：未运行"
         state = "运行中" if self.nginx.running() else "未运行"
         self.cgi_info.setText(f"{text}    Nginx：{state}")
+
+    # ---------- php-cgi 单独控制 ----------
+
+    def restart_cgi(self) -> None:
+        """重启 php-cgi：按当前站点的 PHP 版本重新拉起各端口。"""
+        try:
+            self.cgi.stop_all()
+            for site in self.sites.list_sites():
+                self.cgi.start_site(site)
+        except Exception as exc:  # noqa: BLE001
+            _err(self, "重启 php-cgi 失败", exc)
+        self._update_cgi_info()
+        self.window().statusBar().showMessage("php-cgi 已重启", 5000)
+
+    def start_cgi(self) -> None:
+        try:
+            self.cgi.cleanup_stale()
+            for site in self.sites.list_sites():
+                self.cgi.start_site(site)
+        except Exception as exc:  # noqa: BLE001
+            _err(self, "启动 php-cgi 失败", exc)
+        self._update_cgi_info()
+        self.window().statusBar().showMessage("php-cgi 已启动", 5000)
+
+    def stop_cgi(self) -> None:
+        try:
+            self.cgi.stop_all()
+        except Exception as exc:  # noqa: BLE001
+            _err(self, "停止 php-cgi 失败", exc)
+        self._update_cgi_info()
+        self.window().statusBar().showMessage("php-cgi 已停止", 5000)
+
+    def _cgi_buttons(self) -> QHBoxLayout:
+        row = QHBoxLayout()
+        for label, slot in (
+            ("启动 php-cgi", self.start_cgi),
+            ("重启 php-cgi", self.restart_cgi),
+            ("停止 php-cgi", self.stop_cgi),
+        ):
+            btn = QPushButton(label)
+            btn.clicked.connect(slot)
+            row.addWidget(btn)
+        row.addStretch(1)
+        return row
 
 
 def _err(parent, title: str, exc: Exception) -> None:

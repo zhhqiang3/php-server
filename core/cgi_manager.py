@@ -1,7 +1,8 @@
-"""php-cgi 进程：每个站点一个 fastcgi 后端。"""
+"""php-cgi 进程：每个站点一个 fastcgi 后端，按端口管理，换版本先停旧进程。"""
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
@@ -10,18 +11,25 @@ from core.site_manager import SiteManager, cgi_port_for
 
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
+_CMDLINE_PORT_RE = re.compile(r"-b\s+127\.0\.0\.1:(\d+)")
+
 
 class CgiManager:
-    """按站点启动/停止 php-cgi，按 (PHP 版本, 端口) 复用进程。"""
+    """按监听端口管理 php-cgi：一个端口同时只允许一个进程。
+
+    站点改了 PHP 版本后再启动时，先把同端口旧版本进程停掉，再拉新版本，
+    避免新旧进程抢占同一端口、请求仍打到旧版本。
+    """
 
     def __init__(self) -> None:
         self.php = PHPManager()
         self.sites = SiteManager()
-        self._procs: dict[tuple[str, int], subprocess.Popen] = {}
+        # key 是监听端口，value 是 (版本目录名, Popen)
+        self._procs: dict[int, tuple[str, subprocess.Popen]] = {}
 
-    def alive(self, version: str, port: int) -> bool:
-        proc = self._procs.get((version, port))
-        return proc is not None and proc.poll() is None
+    def alive(self, port: int) -> bool:
+        entry = self._procs.get(port)
+        return entry is not None and entry[1].poll() is None
 
     def start_site(self, site: dict) -> tuple[str, int]:
         version = site.get("php") or self.php.active()
@@ -30,15 +38,17 @@ class CgiManager:
         cgi = self.php.cgi_exe(version)
         if cgi is None:
             raise FileNotFoundError(f"未找到 PHP {version} 的 php-cgi.exe")
-        port = cgi_port_for(site)
-        return cgi.parent.name, self.start(cgi.parent.name, port, cgi)
+        return cgi.parent.name, self.start(cgi.parent.name, cgi_port_for(site), cgi)
 
     def start(self, version: str, port: int, exe: Path | None = None) -> int:
-        if self.alive(version, port):
-            return port
         exe = exe or self.php.cgi_exe(version)
         if exe is None:
             raise FileNotFoundError(f"未找到 PHP {version} 的 php-cgi.exe")
+        entry = self._procs.get(port)
+        if entry is not None and entry[1].poll() is None:
+            if entry[0] == version:
+                return port  # 同版本同端口，直接复用
+            self.stop(port)  # 换了版本：先停旧进程，避免它继续占着端口
         proc = subprocess.Popen(
             [str(exe), "-b", f"127.0.0.1:{port}"],
             cwd=str(exe.parent),
@@ -47,13 +57,14 @@ class CgiManager:
             stderr=subprocess.DEVNULL,
             creationflags=CREATE_NO_WINDOW,
         )
-        self._procs[(version, port)] = proc
+        self._procs[port] = (version, proc)
         return port
 
-    def stop(self, version: str, port: int) -> None:
-        proc = self._procs.pop((version, port), None)
-        if proc is None or proc.poll() is not None:
+    def stop(self, port: int) -> None:
+        entry = self._procs.pop(port, None)
+        if entry is None or entry[1].poll() is not None:
             return
+        proc = entry[1]
         proc.terminate()
         try:
             proc.wait(timeout=5)
@@ -61,8 +72,62 @@ class CgiManager:
             proc.kill()
 
     def stop_all(self) -> None:
-        for key in list(self._procs):
-            self.stop(*key)
+        for port in list(self._procs):
+            self.stop(port)
 
     def running_ports(self) -> list[tuple[str, int]]:
-        return [k for k, p in self._procs.items() if p.poll() is None]
+        return [(v, p) for p, (v, proc) in self._procs.items() if proc.poll() is None]
+
+    def cleanup_stale(self) -> list[int]:
+        """杀掉上次会话遗留的 php-cgi（exe 在本工具 versions_dir 下、未被当前跟踪）。
+
+        GUI 重启后 _procs 丢失，之前拉起的进程就成了"孤儿"，会重复占端口、
+        还可能停不掉。返回被杀掉的 pid 列表。
+        """
+        tracked = {proc.pid for _, proc in self._procs.values() if proc.poll() is None}
+        versions_root = str(self.php.versions_dir.resolve()).lower()
+        killed: list[int] = []
+        for pid, cmdline in _list_php_cgi():
+            if pid in tracked:
+                continue
+            if versions_root not in cmdline.lower():
+                continue  # 不是本工具装的 PHP，不动它
+            try:
+                subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/F"],
+                    capture_output=True,
+                    timeout=10,
+                    creationflags=CREATE_NO_WINDOW,
+                )
+                killed.append(pid)
+            except (OSError, subprocess.TimeoutExpired):
+                continue
+        return killed
+
+
+def _list_php_cgi() -> list[tuple[int, str]]:
+    """枚举系统里的 php-cgi.exe，返回 (pid, 命令行)。查询失败返回空。"""
+    try:
+        out = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_Process -Filter \"Name='php-cgi.exe'\" "
+                "| ForEach-Object { \"$($_.ProcessId)|$($_.CommandLine)\" }",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            creationflags=CREATE_NO_WINDOW,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    result: list[tuple[int, str]] = []
+    for line in out.stdout.splitlines():
+        pid, sep, cmdline = line.partition("|")
+        if sep and pid.strip().isdigit():
+            result.append((int(pid), cmdline))
+    return result
