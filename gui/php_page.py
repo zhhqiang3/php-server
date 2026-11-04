@@ -43,7 +43,8 @@ class PhpPage(QWidget):
         self.list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.list.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.list.currentCellChanged.connect(lambda *_: self._load_detail())
-        self.list.doubleClicked.connect(self.view_ini_requested.emit)
+        # 双击行 -> 打开该版本的 php.ini（doubleClicked 带 QModelIndex，要忽略）
+        self.list.doubleClicked.connect(lambda _index: self.view_ini())
 
         use_btn = QPushButton("设为当前版本")
         use_btn.clicked.connect(self.use)

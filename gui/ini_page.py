@@ -49,7 +49,7 @@ class _SearchBar(QWidget):
         self.edit = QLineEdit()
         self.edit.setPlaceholderText(placeholder)
         self.edit.setClearButtonEnabled(True)
-        self.edit.textChanged.connect(self._changed)
+        self.edit.textChanged.connect(lambda _text: self._changed())
         self.edit.returnPressed.connect(lambda: self._changed(1))
 
         self.count = QLabel("")
@@ -89,7 +89,7 @@ class IniPage(QWidget):
         reload_btn = QPushButton("重新读取")
         reload_btn.clicked.connect(self.refresh)
         back_btn = QPushButton("返回 PHP 列表")
-        back_btn.clicked.connect(self.closed.emit)
+        back_btn.clicked.connect(lambda: self.closed.emit())
 
         top = QHBoxLayout()
         top.addWidget(QLabel("版本"))
