@@ -1,0 +1,19 @@
+php:
+  versions_dir: data/versions
+  active: 8.0.30
+  majors:
+  - '8.4'
+  - '8.3'
+  - '8.2'
+  - '8.1'
+  - '8.0'
+  - '7.4'
+nginx:
+  dir: data/nginx
+  conf: data/nginx/conf/nginx.conf
+  sites_dir: data/sites
+  default_port: 8080
+hosts:
+  path: ''
+  marker_begin: '# BEGIN php-server'
+  marker_end: '# END php-server'
