@@ -53,7 +53,7 @@ def page(qapp, sandbox, fake_php, monkeypatch):
 
     class FakeNginx:
         def running(self):
-            return False
+            return nginx_running["value"]
 
         def start(self):
             calls.append("nginx_start")
@@ -98,6 +98,7 @@ def _build_ui(page):
         QAbstractItemView,
         QCheckBox,
         QLabel,
+        QPushButton,
         QTableWidget,
         QTextEdit,
         QVBoxLayout,
@@ -113,6 +114,7 @@ def _build_ui(page):
     page.cgi_check = QCheckBox()
     page.cgi_check.setChecked(True)
     page.cgi_info = QLabel()
+    page.toggle_btn = QPushButton("启动 Nginx")
     layout = QVBoxLayout(page)
     layout.addWidget(page.table)
 
@@ -188,6 +190,35 @@ def test_nginx_reload_syncs_cgi(qapp, sandbox, fake_php, page):
     page.reload()
     assert "nginx_reload" in page.calls
     assert "sync_all" in page.calls
+
+
+def test_toggle_button_follows_nginx_state(qapp, sandbox, fake_php, page):
+    """启动/停止共用一个按钮：未运行显示「启动」，运行中显示「停止」。"""
+    _build_ui(page)
+    page.nginx_running["value"] = False
+    page.refresh()
+    assert page.toggle_btn.text() == "启动 Nginx"
+
+    page.nginx_running["value"] = True
+    page.refresh()
+    assert page.toggle_btn.text() == "停止 Nginx"
+    assert page.toggle_btn.property("role") == "danger"
+
+
+def test_toggle_nginx_starts_when_stopped(qapp, sandbox, fake_php, page):
+    _build_ui(page)
+    page.nginx_running["value"] = False
+    page.calls.clear()
+    page.toggle_nginx()
+    assert "nginx_start" in page.calls
+
+
+def test_toggle_nginx_stops_when_running(qapp, sandbox, fake_php, page):
+    _build_ui(page)
+    page.nginx_running["value"] = True
+    page.calls.clear()
+    page.toggle_nginx()
+    assert "nginx_stop" in page.calls
 
 
 def test_open_site_uses_browser(qapp, sandbox, fake_php, page, monkeypatch):

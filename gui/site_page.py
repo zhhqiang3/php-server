@@ -74,14 +74,12 @@ class SitePage(QWidget):
         save_conf_btn.clicked.connect(self.save_conf)
         reload_conf_btn = QPushButton("重新读取")
         reload_conf_btn.clicked.connect(self._load_selected)
-        regen_btn = QPushButton("按站点信息重新生成")
-        regen_btn.clicked.connect(self.regenerate_conf)
         test_btn = QPushButton("测试 Nginx 配置")
         test_btn.clicked.connect(self.test_config)
 
         conf_buttons = QHBoxLayout()
         conf_buttons.setSpacing(8)
-        for b in (save_conf_btn, reload_conf_btn, regen_btn, test_btn):
+        for b in (save_conf_btn, reload_conf_btn, test_btn):
             conf_buttons.addWidget(b)
         conf_buttons.addStretch(1)
 
@@ -94,10 +92,8 @@ class SitePage(QWidget):
         conf_layout.addLayout(conf_buttons)
 
         # --- Nginx / php-cgi 控制 ---
-        start_btn = primary("启动 Nginx")
-        start_btn.clicked.connect(self.start)
-        stop_btn = QPushButton("停止 Nginx")
-        stop_btn.clicked.connect(self.stop)
+        self.toggle_btn = primary("启动 Nginx")
+        self.toggle_btn.clicked.connect(self.toggle_nginx)
         reload_btn = QPushButton("重载配置")
         reload_btn.clicked.connect(self.reload)
         self.cgi_check = QCheckBox("启动时同时拉起 php-cgi")
@@ -108,8 +104,8 @@ class SitePage(QWidget):
         nginx_group = QHBoxLayout()
         nginx_group.setSpacing(8)
         nginx_group.addWidget(_group_label("Nginx"))
-        for b in (start_btn, stop_btn, reload_btn):
-            nginx_group.addWidget(b)
+        nginx_group.addWidget(self.toggle_btn)
+        nginx_group.addWidget(reload_btn)
 
         cgi_group = QHBoxLayout()
         cgi_group.setSpacing(8)
@@ -181,6 +177,7 @@ class SitePage(QWidget):
         else:
             self._load_selected()
         self._update_cgi_info()
+        self._sync_toggle_btn()
 
     def _selected_name(self) -> str | None:
         row = self.table.currentRow()
@@ -272,19 +269,6 @@ class SitePage(QWidget):
         text = re.sub(r"(#\s*php version:\s*)\S+", rf"\g<1>{site.get('php', '')}", text, count=1)
         self.sites.write_conf(name, text)
 
-    def regenerate_conf(self) -> None:
-        name = self._selected_name()
-        site = self.sites.get(name) if name else None
-        if site is None:
-            return
-        if (
-            QMessageBox.question(self, "重新生成", "将覆盖该站点手写的配置片段，继续？")
-            != QMessageBox.StandardButton.Yes
-        ):
-            return
-        self.sites.write_conf(name, self.sites.server_block(site))
-        self._load_selected()
-
     def remove(self) -> None:
         name = self._selected_name()
         if not name:
@@ -356,6 +340,7 @@ class SitePage(QWidget):
             self._update_cgi_info()
             return
         self._update_cgi_info()
+        self._sync_toggle_btn()
         self.window().statusBar().showMessage("Nginx 已启动", 5000)
 
     def stop(self) -> None:
@@ -365,6 +350,24 @@ class SitePage(QWidget):
         except Exception as exc:  # noqa: BLE001
             _err(self, "停止失败", exc)
         self._update_cgi_info()
+        self._sync_toggle_btn()
+
+    def toggle_nginx(self) -> None:
+        """启动/停止共用一个按钮，按当前状态切换。"""
+        if self.nginx.running():
+            self.stop()
+            self.window().statusBar().showMessage("Nginx 已停止", 5000)
+        else:
+            self.start()
+
+    def _sync_toggle_btn(self) -> None:
+        """按 Nginx 运行状态切换按钮文案与样式。"""
+        running = self.nginx.running()
+        self.toggle_btn.setText("停止 Nginx" if running else "启动 Nginx")
+        self.toggle_btn.setProperty("role", "danger" if running else "primary")
+        from gui.ui import restyle
+
+        restyle(self.toggle_btn)
 
     def reload(self) -> None:
         try:

@@ -157,6 +157,21 @@ class NginxManager:
         if result.returncode != 0:
             raise RuntimeError(_nginx_error(result))
 
+    def uninstall(self, keep_sites: bool = True) -> None:
+        """卸载 Nginx：删除程序目录。运行中会先停止。
+
+        keep_sites=True 时保留各站点的 site.conf/site.json（它们存在
+        data/sites/ 下，本来就不在 nginx 目录里），重装后自动恢复。
+        """
+        if self.running():
+            self.stop()
+        if self.prefix.exists():
+            shutil.rmtree(self.prefix)
+        cfg = load_config()
+        if "version" in cfg.get("nginx", {}):
+            del cfg["nginx"]["version"]
+            save_config(cfg)
+
     def reload(self) -> None:
         exe = self.exe()
         if exe is None:

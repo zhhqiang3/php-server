@@ -18,7 +18,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 @pytest.fixture()
 def sandbox(tmp_path, monkeypatch):
-    """把 core.paths 的 ROOT / CONFIG_PATH 指到临时目录，并重载相关模块。"""
+    """把 core.paths 的 ROOT / CONFIG_PATH 指到临时目录，并重载相关模块。
+
+    连 gui 里持有 core 模块引用的页面一起 reload，否则 GUI 模块里
+    `from core.xxx import Y` 拿到的还是旧类，monkeypatch 打不中。
+    """
     import core.paths as paths
 
     monkeypatch.setattr(paths, "ROOT", tmp_path)
@@ -43,8 +47,34 @@ def sandbox(tmp_path, monkeypatch):
     ]
     for mod in modules:
         importlib.reload(mod)
+
+    # GUI 模块引用了 core 类，一并 reload 让它们绑定到新类
+    import gui.appearance as gui_appearance
+    import gui.hosts_page as gui_hosts
+    import gui.ini_page as gui_ini
+    import gui.log_page as gui_log
+    import gui.nginx_page as gui_nginx
+    import gui.php_page as gui_php
+    import gui.site_dialog as gui_site_dialog
+    import gui.site_page as gui_site
+    import gui.widgets as gui_widgets
+
+    gui_modules = [
+        gui_php,
+        gui_site,
+        gui_site_dialog,
+        gui_ini,
+        gui_nginx,
+        gui_hosts,
+        gui_log,
+        gui_appearance,
+        gui_widgets,
+    ]
+    for mod in gui_modules:
+        importlib.reload(mod)
+
     yield tmp_path
-    for mod in modules:
+    for mod in modules + gui_modules:
         importlib.reload(mod)
 
 
