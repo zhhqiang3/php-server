@@ -203,6 +203,14 @@ http {{
             port += 1
         return port
 
+    def next_free_port(self, preferred: int = 80) -> int:
+        """返回优先使用的端口；被占用时往下找第一个空闲端口。"""
+        used = {int(s["port"]) for s in self.list_sites()}
+        port = int(preferred)
+        while port in used:
+            port += 1
+        return port
+
 
 def cgi_port_for_version(version: str, php: PHPManager | None = None) -> int:
     """PHP 版本对应的 fastcgi 端口。

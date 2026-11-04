@@ -16,12 +16,80 @@ def sites(sandbox, fake_php):
     return SiteManager()
 
 
+@pytest.fixture()
+def hosts_file(tmp_path):
+    """给 hosts 管理器一个临时文件，别动真的系统 hosts。"""
+    p = tmp_path / "hosts"
+    p.write_text("127.0.0.1 localhost\n", encoding="utf-8")
+    from core.paths import save_config
+
+    save_config({"hosts": {"path": str(p)}})
+    return p
+
+
 def test_new_dialog_defaults(qapp, sandbox, fake_php, sites):
     dlg = SiteDialog(None, sites, PHPManager())
     assert dlg.name.text() == ""
     assert dlg.name.isEnabled()
-    assert dlg.port.value() == sites.next_port()
+    assert dlg.port.value() == 80  # 默认端口 80
     assert dlg.php_box.count() == 2
+    assert not dlg.use_ip.isChecked()
+
+
+def test_new_dialog_host_follows_name(qapp, sandbox, fake_php, sites):
+    dlg = SiteDialog(None, sites, PHPManager())
+    assert dlg.host.text() == ""
+    dlg.name.setText("mysite")
+    assert dlg.host.text() == "mysite.local"
+
+
+def test_new_dialog_port_skips_used(qapp, sandbox, fake_php, sites):
+    sites.add("s1", "a.local", 80, str(sandbox / "w1"), "8.3.36")
+    dlg = SiteDialog(None, sites, PHPManager())
+    assert dlg.port.value() == 81
+
+
+def test_use_ip_checkbox_fills_host(qapp, sandbox, fake_php, sites):
+    dlg = SiteDialog(None, sites, PHPManager())
+    dlg.name.setText("mysite")
+    dlg.use_ip.setChecked(True)
+    assert dlg.host.text() == "127.0.0.1"
+    assert not dlg.host.isEnabled()
+    dlg.use_ip.setChecked(False)
+    assert dlg.host.text() == "mysite.local"
+    assert dlg.host.isEnabled()
+
+
+def test_local_domain_saved_to_hosts(qapp, sandbox, fake_php, sites, hosts_file):
+    dlg = SiteDialog(None, sites, PHPManager())
+    dlg.name.setText("mysite")
+    dlg.root.setText(str(sandbox / "w1"))
+    dlg._save()
+    assert dlg.result_site is not None
+    assert dlg.hosts_added is True
+    assert "mysite.local" in hosts_file.read_text(encoding="utf-8")
+
+
+def test_public_domain_not_written_to_hosts(qapp, sandbox, fake_php, sites, hosts_file):
+    dlg = SiteDialog(None, sites, PHPManager())
+    dlg.name.setText("mysite")
+    dlg.host.setText("mysite.example.com")
+    dlg.root.setText(str(sandbox / "w1"))
+    dlg._save()
+    assert dlg.result_site is not None
+    assert dlg.hosts_added is False
+    assert "mysite.example.com" not in hosts_file.read_text(encoding="utf-8")
+
+
+def test_existing_host_not_written_again(qapp, sandbox, fake_php, sites, hosts_file):
+    hosts_file.write_text("127.0.0.1\talready.local\n", encoding="utf-8")
+    dlg = SiteDialog(None, sites, PHPManager())
+    dlg.name.setText("already")
+    dlg.root.setText(str(sandbox / "w1"))
+    dlg._save()
+    assert dlg.result_site is not None
+    assert dlg.hosts_added is False
+    assert hosts_file.read_text(encoding="utf-8").count("already.local") == 1
 
 
 def test_edit_dialog_disables_name(qapp, sandbox, fake_php, sites):

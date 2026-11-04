@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import webbrowser
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -21,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.cgi_manager import CgiManager
+from core.hosts_manager import is_local_domain
 from core.nginx_manager import NginxManager
 from core.php_manager import PHPManager
 from core.site_manager import SiteManager, cgi_port_for
@@ -51,9 +53,12 @@ class SitePage(QWidget):
         edit_btn.clicked.connect(self.edit)
         del_btn = QPushButton("删除所选")
         del_btn.clicked.connect(self.remove)
+        open_btn = QPushButton("打开")
+        open_btn.setToolTip("用默认浏览器打开选中的站点")
+        open_btn.clicked.connect(self.open_site)
 
         buttons = QHBoxLayout()
-        for b in (add_btn, edit_btn, del_btn):
+        for b in (add_btn, edit_btn, del_btn, open_btn):
             buttons.addWidget(b)
         buttons.addStretch(1)
 
@@ -225,8 +230,43 @@ class SitePage(QWidget):
             != QMessageBox.StandardButton.Yes
         ):
             return
+        site = self.sites.get(name)
         self.sites.remove(name)
         self.refresh()
+        # 站点没了，它占用的 hosts 记录也一并清掉
+        self._cleanup_hosts(site)
+
+    def _cleanup_hosts(self, site: dict | None) -> None:
+        """删除本工具写入的 .local 域名记录（只动本工具管理的标记段）。"""
+        if not site:
+            return
+        host = str(site.get("host") or "").strip()
+        if not is_local_domain(host):
+            return
+        try:
+            from core.hosts_manager import HostsManager
+
+            HostsManager().remove(host)
+        except Exception:  # noqa: BLE001 — hosts 清理失败不影响删除站点
+            pass
+
+    # ---------- 打开站点 ----------
+
+    def open_site(self) -> None:
+        """用默认浏览器打开选中站点的地址。"""
+        site = self._site()
+        if site is None:
+            QMessageBox.information(self, "提示", "请先在列表中选择要打开的站点")
+            return
+        host = str(site.get("host") or "127.0.0.1").strip()
+        port = int(site.get("port") or 80)
+        url = f"http://{host}:{port}/"
+        try:
+            webbrowser.open(url)
+        except Exception as exc:  # noqa: BLE001
+            _err(self, "打开失败", exc)
+            return
+        self.window().statusBar().showMessage(f"已在浏览器打开 {url}", 5000)
 
     def save_conf(self) -> None:
         name = self._selected_name()

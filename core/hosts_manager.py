@@ -10,6 +10,28 @@ from core.paths import load_config
 
 DEFAULT_HOSTS = Path(r"C:\Windows\System32\drivers\etc\hosts")
 
+# 这些顶级域名解析不到公网 DNS，需要写进 hosts
+LOCAL_TLDS = (".local", ".localhost")
+
+
+def is_ip(host: str) -> bool:
+    """判断是不是 IP 字面量（而不是域名）。"""
+    host = (host or "").strip()
+    if not host:
+        return False
+    if host.startswith("[") and host.endswith("]"):
+        host = host[1:-1]
+    parts = host.split(".")
+    if len(parts) != 4:
+        return False
+    return all(p.isdigit() and 0 <= int(p) <= 255 for p in parts)
+
+
+def is_local_domain(host: str) -> bool:
+    """是不是需要写进 hosts 的本地域名（.local / .localhost）。"""
+    host = (host or "").strip().lower()
+    return bool(host) and not is_ip(host) and host.endswith(LOCAL_TLDS)
+
 
 class HostsManager:
     def __init__(self) -> None:
@@ -41,6 +63,27 @@ class HostsManager:
             if len(parts) >= 2:
                 rows.append((parts[0], parts[1]))
         return rows
+
+    def contains(self, host: str) -> bool:
+        """整个 hosts 文件里是否已有该域名（不限本工具管理的标记段）。"""
+        target = host.strip().lower()
+        if not target:
+            return False
+        for line in self.read().splitlines():
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            parts = s.split()
+            if len(parts) >= 2 and target in [p.lower() for p in parts[1:]]:
+                return True
+        return False
+
+    def ensure(self, ip: str, host: str) -> bool:
+        """域名不存在就写进 hosts；已存在返回 False。"""
+        if self.contains(host):
+            return False
+        self.add(ip, host)
+        return True
 
     def add(self, ip: str, host: str) -> None:
         ip, host = ip.strip(), host.strip()

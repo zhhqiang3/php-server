@@ -73,3 +73,28 @@ def test_backup_created(mgr, hosts_file):
     mgr.add("127.0.0.1", "a.local")
     backups = list(hosts_file.parent.glob("hosts.bak-*"))
     assert backups, "应当生成 hosts 备份"
+
+
+def test_contains_finds_any_domain(mgr, hosts_file):
+    """不限于本工具的标记段，文件里任何地方出现都算存在。"""
+    hosts_file.write_text(
+        "127.0.0.1 localhost\n10.0.0.5 other.local\n", encoding="utf-8"
+    )
+    assert mgr.contains("other.local") is True
+    assert mgr.contains("missing.local") is False
+
+
+def test_contains_ignores_case(mgr, hosts_file):
+    mgr.add("127.0.0.1", "MySite.local")
+    assert mgr.contains("mysite.local") is True
+
+
+def test_ensure_adds_when_missing(mgr, hosts_file):
+    assert mgr.ensure("127.0.0.1", "new.local") is True
+    assert mgr.contains("new.local") is True
+
+
+def test_ensure_skips_existing(mgr, hosts_file):
+    mgr.ensure("127.0.0.1", "new.local")
+    assert mgr.ensure("127.0.0.1", "new.local") is False
+    assert hosts_file.read_text(encoding="utf-8").count("new.local") == 1

@@ -11,6 +11,17 @@ from gui.site_page import SitePage  # noqa: E402
 
 
 @pytest.fixture()
+def hosts_file(tmp_path):
+    """给 hosts 管理器一个临时文件，别动真的系统 hosts。"""
+    p = tmp_path / "hosts"
+    p.write_text("127.0.0.1 localhost\n", encoding="utf-8")
+    from core.paths import save_config
+
+    save_config({"hosts": {"path": str(p)}})
+    return p
+
+
+@pytest.fixture()
 def page(qapp, sandbox, fake_php, monkeypatch):
     """造一个站点页，CgiManager 用假的，Nginx 用假的。"""
     import core.cgi_manager as cm
@@ -175,3 +186,38 @@ def test_nginx_reload_syncs_cgi(qapp, sandbox, fake_php, page):
     page.reload()
     assert "nginx_reload" in page.calls
     assert "sync_all" in page.calls
+
+
+def test_open_site_uses_browser(qapp, sandbox, fake_php, page, monkeypatch):
+    opened = []
+    monkeypatch.setattr("gui.site_page.webbrowser.open", lambda url: opened.append(url))
+    _build_ui(page)
+    page.sites.add("s1", "a.local", 8080, str(sandbox / "w1"), "8.3.36")
+    page.refresh()
+    page.table.selectRow(0)
+    page.open_site()
+    assert opened == ["http://a.local:8080/"]
+
+
+def test_open_site_without_selection(qapp, sandbox, fake_php, page, monkeypatch):
+    opened = []
+    monkeypatch.setattr("gui.site_page.webbrowser.open", lambda url: opened.append(url))
+    _build_ui(page)
+    page.table.clearSelection()
+    page.open_site()
+    assert opened == []
+
+
+def test_remove_site_cleans_hosts(qapp, sandbox, fake_php, page, hosts_file):
+    _build_ui(page)
+    page.sites.add("s1", "s1.local", 80, str(sandbox / "w1"), "8.3.36")
+    from core.hosts_manager import HostsManager
+
+    HostsManager().ensure("127.0.0.1", "s1.local")
+    assert "s1.local" in hosts_file.read_text(encoding="utf-8")
+
+    page.refresh()
+    page.table.selectRow(0)
+    page.remove()
+    assert page.sites.get("s1") is None
+    assert "s1.local" not in hosts_file.read_text(encoding="utf-8")
