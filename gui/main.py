@@ -9,15 +9,25 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from PyQt6.QtGui import QAction, QColor, QPalette
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
+    QMenu,
     QStatusBar,
     QTabWidget,
+    QWidget,
 )
 
 from core.php_manager import PHPManager
+from gui.appearance import (
+    FONT_SIZES,
+    THEMES,
+    apply_appearance,
+    current_font_size,
+    current_theme,
+    save_appearance,
+)
 from gui.hosts_page import HostsPage
 from gui.ini_page import IniPage
 from gui.log_page import LogPage
@@ -49,14 +59,54 @@ class MainWindow(QMainWindow):
         tabs.currentChanged.connect(self._on_tab)
         self.setCentralWidget(tabs)
 
-        quit_action = QAction("退出", self)
-        quit_action.triggered.connect(self.close)
-        menu = self.menuBar().addMenu("文件")
-        menu.addAction(quit_action)
+        self._build_menus()
 
         self.setStatusBar(QStatusBar())
         self.php_page.changed.connect(self._sync)
         self._sync()
+
+    def _build_menus(self) -> None:
+        quit_action = QAction("退出", self)
+        quit_action.triggered.connect(self.close)
+        file_menu = self.menuBar().addMenu("文件")
+        file_menu.addAction(quit_action)
+
+        # 设置菜单：主题单选 + 字体大小单选
+        settings_menu = self.menuBar().addMenu("设置")
+
+        theme_menu = QMenu("主题", self)
+        self._theme_actions = []
+        current = current_theme()
+        for name in THEMES:
+            action = QAction(name, self, checkable=True)
+            action.setChecked(name == current)
+            action.triggered.connect(lambda checked, n=name: self._set_theme(n))
+            theme_menu.addAction(action)
+            self._theme_actions.append(action)
+        settings_menu.addMenu(theme_menu)
+
+        font_menu = QMenu("字体大小", self)
+        self._font_actions = []
+        size_now = current_font_size()
+        for size in FONT_SIZES:
+            action = QAction(f"{size} pt", self, checkable=True)
+            action.setChecked(size == size_now)
+            action.triggered.connect(lambda checked, s=size: self._set_font_size(s))
+            font_menu.addAction(action)
+            self._font_actions.append(action)
+        settings_menu.addMenu(font_menu)
+
+    def _set_theme(self, name: str) -> None:
+        save_appearance(name, current_font_size())
+        for action in self._theme_actions:
+            action.setChecked(action.text() == name)
+        apply_appearance(QApplication.instance())
+
+    def _set_font_size(self, size: int) -> None:
+        save_appearance(current_theme(), size)
+        for action in self._font_actions:
+            action.setChecked(action.text() == f"{size} pt")
+        apply_appearance(QApplication.instance())
 
     def _on_tab(self, index: int) -> None:
         if index == 0:
@@ -78,24 +128,9 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"PHP {active}    {nginx}")
 
 
-def apply_dark(app: QApplication) -> None:
-    app.setStyle("Fusion")
-    palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window, QColor(32, 32, 32))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor(230, 230, 230))
-    palette.setColor(QPalette.ColorRole.Base, QColor(24, 24, 24))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(40, 40, 40))
-    palette.setColor(QPalette.ColorRole.Text, QColor(230, 230, 230))
-    palette.setColor(QPalette.ColorRole.Button, QColor(48, 48, 48))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor(230, 230, 230))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor(45, 110, 180))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-    app.setPalette(palette)
-
-
 def main() -> None:
     app = QApplication(sys.argv)
-    apply_dark(app)
+    apply_appearance(app)
     win = MainWindow()
     win.show()
     sys.exit(app.exec())

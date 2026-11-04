@@ -18,3 +18,6 @@ hosts:
   path: ''
   marker_begin: '# BEGIN php-server'
   marker_end: '# END php-server'
+ui:
+  theme: 跟随系统
+  font_size: 10
