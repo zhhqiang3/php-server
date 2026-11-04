@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 
@@ -121,9 +122,26 @@ class NginxManager:
         if self.running():
             return
         self.sites.write_nginx_conf()
-        result = self._run([str(exe), "-p", str(self.prefix), "-c", "conf/nginx.conf"])
-        if result.returncode != 0:
-            raise RuntimeError(_nginx_error(result))
+        # nginx 在 Windows 上主进程常驻前台，绝不能 subprocess.run 等它退出（会卡死 UI）。
+        proc = subprocess.Popen(
+            [str(exe), "-p", str(self.prefix), "-c", "conf/nginx.conf"],
+            cwd=str(self.prefix),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                out, err = proc.communicate()
+                text = ((err or "") + (out or "")).strip()
+                raise RuntimeError(text or f"nginx 立即退出，退出码 {proc.returncode}")
+            if self.running():
+                return
+            time.sleep(0.1)
+        raise RuntimeError("nginx 启动超时：进程仍在运行但未写出 logs/nginx.pid，请查看 logs/error.log")
 
     def stop(self) -> None:
         exe = self.exe()
