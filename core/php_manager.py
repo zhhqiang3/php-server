@@ -149,6 +149,48 @@ class PHPManager:
             cfg.setdefault("php", {})["active"] = ""
             save_config(cfg)
 
+    # ---------- fastcgi 端口 ----------
+
+    def version_key(self, version: str) -> str:
+        """版本号归一化：8.3 映射到已装的 8.3.x 目录名，未安装则原样返回。"""
+        exe = self.php_exe(version)
+        return exe.parent.name if exe else version
+
+    def cgi_port(self, version: str) -> int:
+        """给 PHP 版本分配一个固定的 fastcgi 端口。
+
+        多版本共存时每个版本各占一个端口；分配结果记在 config.yaml 的
+        php.cgi_ports 里，同一个版本永远拿到同一个端口。
+        """
+        key = self.version_key(version)
+        if not key:
+            raise ValueError("未指定 PHP 版本")
+        cfg = load_config()
+        php_cfg = cfg.setdefault("php", {})
+        ports: dict[str, int] = php_cfg.setdefault("cgi_ports", {})
+        if key in ports:
+            return int(ports[key])
+        used = {int(p) for p in ports.values()}
+        port = _default_cgi_port(key)
+        while port in used:
+            port += 1
+            if port > 9999:
+                raise RuntimeError("php-cgi 端口已用尽（9000-9999）")
+        ports[key] = port
+        save_config(cfg)
+        return port
+
+
+def _default_cgi_port(version: str) -> int:
+    """首选端口：9000 + 主版本*100 + 次版本，例如 8.3.36 -> 9803。"""
+    m = re.match(r"^(\d+)\.(\d+)", version.strip())
+    if not m:
+        return 9000
+    offset = int(m.group(1)) * 100 + int(m.group(2))
+    if offset >= 1000:  # 主版本很大时折回 9000 段
+        offset %= 1000
+    return 9000 + offset
+
 
 def _version_key(name: str) -> tuple:
     raw = name

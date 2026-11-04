@@ -1,8 +1,7 @@
-"""php-cgi 进程：每个站点一个 fastcgi 后端，按端口管理，换版本先停旧进程。"""
+"""php-cgi 进程：每个 PHP 版本一个 fastcgi 后端，按端口管理，换版本先停旧进程。"""
 
 from __future__ import annotations
 
-import re
 import subprocess
 from pathlib import Path
 
@@ -11,12 +10,12 @@ from core.site_manager import SiteManager, cgi_port_for
 
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
-_CMDLINE_PORT_RE = re.compile(r"-b\s+127\.0\.0\.1:(\d+)")
-
 
 class CgiManager:
     """按监听端口管理 php-cgi：一个端口同时只允许一个进程。
 
+    多版本 PHP 各占一个端口（端口由 PHPManager.cgi_port 统一分配），
+    同版本的多个站点共用同一个 php-cgi 进程。
     站点改了 PHP 版本后再启动时，先把同端口旧版本进程停掉，再拉新版本，
     避免新旧进程抢占同一端口、请求仍打到旧版本。
     """
@@ -38,7 +37,7 @@ class CgiManager:
         cgi = self.php.cgi_exe(version)
         if cgi is None:
             raise FileNotFoundError(f"未找到 PHP {version} 的 php-cgi.exe")
-        return cgi.parent.name, self.start(cgi.parent.name, cgi_port_for(site), cgi)
+        return cgi.parent.name, self.start(cgi.parent.name, cgi_port_for(site, self.php), cgi)
 
     def start(self, version: str, port: int, exe: Path | None = None) -> int:
         exe = exe or self.php.cgi_exe(version)
@@ -74,6 +73,39 @@ class CgiManager:
     def stop_all(self) -> None:
         for port in list(self._procs):
             self.stop(port)
+
+    def sync_all(self) -> list[tuple[str, int]]:
+        """按当前站点配置对齐 php-cgi 进程。
+
+        需要的端口启动，站点改过 PHP 版本后旧端口上的进程会被停掉，
+        多余的进程也会回收。返回 [(版本, 端口)]。
+        """
+        wanted: dict[int, tuple[str, Path]] = {}
+        for site in self.sites.list_sites():
+            version = site.get("php") or self.php.active()
+            if not version:
+                continue
+            cgi = self.php.cgi_exe(version)
+            if cgi is None:
+                continue
+            wanted[cgi_port_for(site, self.php)] = (cgi.parent.name, cgi)
+        # 站点不再需要的端口：停掉
+        for port in list(self._procs):
+            if port not in wanted:
+                self.stop(port)
+        started: list[tuple[str, int]] = []
+        for port, (version, cgi) in wanted.items():
+            self.start(version, port, cgi)
+            started.append((version, port))
+        return started
+
+    def restart_all(self) -> list[tuple[str, int]]:
+        """全部停掉再按当前站点配置重新拉起，返回 [(版本, 端口)]。"""
+        self.stop_all()
+        started: list[tuple[str, int]] = []
+        for site in self.sites.list_sites():
+            started.append(self.start_site(site))
+        return started
 
     def running_ports(self) -> list[tuple[str, int]]:
         return [(v, p) for p, (v, proc) in self._procs.items() if proc.poll() is None]

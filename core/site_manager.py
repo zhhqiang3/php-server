@@ -143,7 +143,7 @@ class SiteManager:
         host = site["host"]
         port = site["port"]
         php = site.get("php") or self.php.active() or "php"
-        cgi_port = cgi_port_for(site)
+        cgi_port = cgi_port_for(site, self.php)
         return f"""server {{
     listen {port};
     server_name {host};
@@ -204,19 +204,25 @@ http {{
         return port
 
 
-def cgi_port_for_version(version: str) -> int:
-    """每个 PHP 版本一个固定 fastcgi 端口：8.3.36 -> 9803（9000 + 主版本*100 + 次版本）。
+def cgi_port_for_version(version: str, php: PHPManager | None = None) -> int:
+    """PHP 版本对应的 fastcgi 端口。
 
-    多版本 PHP 各占一个端口，同版本的站点共用同一个 php-cgi 进程。
+    优先用 PHPManager 里登记的固定端口（多版本各占一个），登记失败时退回
+    按版本号推算的端口。
     """
-    m = re.match(r"^(\d+)\.(\d+)", version.strip())
-    if not m:
-        return 9000
-    return 9000 + int(m.group(1)) * 100 + int(m.group(2))
+    php = php or PHPManager()
+    try:
+        return php.cgi_port(version)
+    except Exception:  # noqa: BLE001 — 端口分配失败时用推算值兜底
+        m = re.match(r"^(\d+)\.(\d+)", version.strip())
+        if not m:
+            return 9000
+        return 9000 + int(m.group(1)) * 100 + int(m.group(2))
 
 
-def cgi_port_for(site: dict) -> int:
-    """站点的 php-cgi 端口：site.json 里显式记了 cgi_port 就用它，否则按 PHP 版本推算。"""
+def cgi_port_for(site: dict, php: PHPManager | None = None) -> int:
+    """站点的 php-cgi 端口：site.json 里显式记了 cgi_port 就用它，否则按 PHP 版本取。"""
     if site.get("cgi_port"):
         return int(site["cgi_port"])
-    return cgi_port_for_version(site.get("php") or "8.0")
+    version = site.get("php") or (php or PHPManager()).active() or "8.0"
+    return cgi_port_for_version(version, php)

@@ -132,7 +132,7 @@ class SitePage(QWidget):
                 site.get("host", ""),
                 str(site.get("port", "")),
                 site.get("php", ""),
-                f"127.0.0.1:{cgi_port_for(site)}",
+                f"127.0.0.1:{cgi_port_for(site, self.php)}",
             ]
             for col, value in enumerate(values):
                 self.table.setItem(i, col, QTableWidgetItem(value))
@@ -191,8 +191,12 @@ class SitePage(QWidget):
         if dlg.exec() != SiteDialog.DialogCode.Accepted or not dlg.result_site:
             return
         site = dlg.result_site
-        # 端口/域名变了时，同步片段里的 listen / server_name（保留其它手写内容）
-        if int(old.get("port", 0)) != int(site.get("port", 0)) or old.get("host") != site.get("host"):
+        # 端口/域名/PHP 版本变了时，同步片段里的对应字段（保留其它手写内容）
+        if (
+            int(old.get("port", 0)) != int(site.get("port", 0))
+            or old.get("host") != site.get("host")
+            or old.get("php") != site.get("php")
+        ):
             self._sync_conf_fields(name)
         self.refresh()
         self.window().statusBar().showMessage("站点信息已更新，记得重载 Nginx", 5000)
@@ -204,6 +208,12 @@ class SitePage(QWidget):
             return
         text = re.sub(r"(\blisten\s+)\d+", rf"\g<1>{site['port']}", text, count=1)
         text = re.sub(r"(\bserver_name\s+)\S+", rf"\g<1>{site['host']}", text, count=1)
+        # PHP 版本变了，fastcgi 端口也跟着变
+        cgi_port = cgi_port_for(site, self.php)
+        text = re.sub(
+            r"(\bfastcgi_pass\s+127\.0\.0\.1:)\d+", rf"\g<1>{cgi_port}", text, count=1
+        )
+        text = re.sub(r"(#\s*php version:\s*)\S+", rf"\g<1>{site.get('php', '')}", text, count=1)
         self.sites.write_conf(name, text)
 
     def remove(self) -> None:
@@ -247,8 +257,7 @@ class SitePage(QWidget):
             if self.cgi_check.isChecked():
                 # 上次会话遗留的 php-cgi 会占着端口，先清掉
                 self.cgi.cleanup_stale()
-                for site in self.sites.list_sites():
-                    self.cgi.start_site(site)
+                self.cgi.sync_all()
             self.nginx.start()
         except Exception as exc:  # noqa: BLE001
             _err(self, "启动失败", exc)
@@ -269,8 +278,8 @@ class SitePage(QWidget):
         try:
             self.nginx.reload()
             if self.cgi_check.isChecked():
-                for site in self.sites.list_sites():
-                    self.cgi.start_site(site)
+                # 配置可能变了，php-cgi 也要跟着对齐（换版本时旧进程要停）
+                self.cgi.sync_all()
         except Exception as exc:  # noqa: BLE001
             _err(self, "重载失败", exc)
             return
@@ -299,23 +308,26 @@ class SitePage(QWidget):
     def restart_cgi(self) -> None:
         """重启 php-cgi：按当前站点的 PHP 版本重新拉起各端口。"""
         try:
-            self.cgi.stop_all()
-            for site in self.sites.list_sites():
-                self.cgi.start_site(site)
+            started = self.cgi.restart_all()
         except Exception as exc:  # noqa: BLE001
             _err(self, "重启 php-cgi 失败", exc)
+            self._update_cgi_info()
+            return
         self._update_cgi_info()
-        self.window().statusBar().showMessage("php-cgi 已重启", 5000)
+        detail = "，".join(f"{v} :{p}" for v, p in started) if started else "无站点"
+        self.window().statusBar().showMessage(f"php-cgi 已重启（{detail}）", 5000)
 
     def start_cgi(self) -> None:
         try:
             self.cgi.cleanup_stale()
-            for site in self.sites.list_sites():
-                self.cgi.start_site(site)
+            started = self.cgi.sync_all()
         except Exception as exc:  # noqa: BLE001
             _err(self, "启动 php-cgi 失败", exc)
+            self._update_cgi_info()
+            return
         self._update_cgi_info()
-        self.window().statusBar().showMessage("php-cgi 已启动", 5000)
+        detail = "，".join(f"{v} :{p}" for v, p in started) if started else "无站点"
+        self.window().statusBar().showMessage(f"php-cgi 已启动（{detail}）", 5000)
 
     def stop_cgi(self) -> None:
         try:

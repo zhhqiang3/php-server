@@ -8,6 +8,9 @@ php:
   - '8.1'
   - '8.0'
   - '7.4'
+  cgi_ports:
+    8.3.36: 9803
+    8.4.27: 9804
 nginx:
   dir: data/nginx
   conf: data/nginx/conf/nginx.conf

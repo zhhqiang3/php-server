@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
 
 # 运行时数据（安装的 PHP / Nginx 体积大，不入库）
 data/versions/
