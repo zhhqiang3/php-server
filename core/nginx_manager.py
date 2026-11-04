@@ -45,6 +45,8 @@ class NginxManager:
                 [str(exe), "-v"],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
                 cwd=str(self.prefix),
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
@@ -109,6 +111,8 @@ class NginxManager:
             ["tasklist", "/FI", f"PID eq {n}", "/NH"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         return str(n) in (out.stdout or "")
@@ -130,6 +134,8 @@ class NginxManager:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         deadline = time.monotonic() + 5.0
@@ -179,6 +185,8 @@ class NginxManager:
             cwd=str(self.prefix),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )

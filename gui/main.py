@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 from core.php_manager import PHPManager
 from gui.hosts_page import HostsPage
 from gui.ini_page import IniPage
+from gui.log_page import LogPage
 from gui.nginx_page import NginxPage
 from gui.php_page import PhpPage
 from gui.site_page import SitePage
@@ -36,6 +37,7 @@ class MainWindow(QMainWindow):
         self.ini_page = IniPage(self.php_page.mgr)
         self.nginx_page = NginxPage()
         self.hosts_page = HostsPage()
+        self.log_page = LogPage()
 
         tabs = QTabWidget()
         tabs.addTab(self.php_page, "PHP")
@@ -43,6 +45,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.ini_page, "php.ini")
         tabs.addTab(self.nginx_page, "Nginx")
         tabs.addTab(self.hosts_page, "Hosts")
+        tabs.addTab(self.log_page, "日志")
         tabs.currentChanged.connect(self._on_tab)
         self.setCentralWidget(tabs)
 
@@ -66,6 +69,8 @@ class MainWindow(QMainWindow):
             self.nginx_page.refresh()
         elif index == 4:
             self.hosts_page.refresh()
+        elif index == 5:
+            self.log_page.rescan()
 
     def _sync(self) -> None:
         active = self.php_page.mgr.active() or "未选择"
