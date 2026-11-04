@@ -25,6 +25,7 @@ from gui.widgets import DownloadBar, DownloadTask
 
 class PhpPage(QWidget):
     changed = pyqtSignal()
+    view_ini_requested = pyqtSignal(str)  # 请求打开某个版本的 php.ini 配置
 
     def __init__(self) -> None:
         super().__init__()
@@ -42,15 +43,18 @@ class PhpPage(QWidget):
         self.list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.list.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.list.currentCellChanged.connect(lambda *_: self._load_detail())
+        self.list.doubleClicked.connect(self.view_ini_requested.emit)
 
         use_btn = QPushButton("设为当前版本")
         use_btn.clicked.connect(self.use)
+        ini_btn = QPushButton("查看配置…")
+        ini_btn.clicked.connect(self.view_ini)
         remove_btn = QPushButton("删除所选版本")
         remove_btn.clicked.connect(self.remove)
         refresh_btn = QPushButton("刷新")
         refresh_btn.clicked.connect(self.refresh)
         actions = QHBoxLayout()
-        for b in (use_btn, remove_btn, refresh_btn):
+        for b in (use_btn, ini_btn, remove_btn, refresh_btn):
             actions.addWidget(b)
         actions.addStretch(1)
 
@@ -209,6 +213,14 @@ class PhpPage(QWidget):
         self.refresh()
         self.changed.emit()
         self.window().statusBar().showMessage(f"当前 PHP 已切换为 {full}", 5000)
+
+    def view_ini(self) -> None:
+        """打开选中版本的 php.ini 配置页。"""
+        version = self._selected()
+        if not version:
+            QMessageBox.information(self, "提示", "请先在列表中选择要查看配置的版本")
+            return
+        self.view_ini_requested.emit(version)
 
     def remove(self) -> None:
         version = self._selected()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import (
     QComboBox,
@@ -71,6 +72,10 @@ class _SearchBar(QWidget):
 
 
 class IniPage(QWidget):
+    """php.ini 配置页。默认不在主窗口里显示，由 PHP 列表的「查看配置」打开。"""
+
+    closed = pyqtSignal()
+
     def __init__(self, php: PHPManager) -> None:
         super().__init__()
         self.php = php
@@ -83,12 +88,15 @@ class IniPage(QWidget):
         self.version.currentTextChanged.connect(self.refresh)
         reload_btn = QPushButton("重新读取")
         reload_btn.clicked.connect(self.refresh)
+        back_btn = QPushButton("返回 PHP 列表")
+        back_btn.clicked.connect(self.closed.emit)
 
         top = QHBoxLayout()
         top.addWidget(QLabel("版本"))
         top.addWidget(self.version)
         top.addWidget(reload_btn)
         top.addStretch(1)
+        top.addWidget(back_btn)
 
         tabs = QTabWidget()
         tabs.addTab(self._build_common_tab(), "常用设置")
@@ -98,6 +106,15 @@ class IniPage(QWidget):
         layout = QVBoxLayout(self)
         layout.addLayout(top)
         layout.addWidget(tabs, 1)
+
+    def show_version(self, version: str) -> None:
+        """打开页面时定位到指定版本。"""
+        self.refresh()
+        idx = self.version.findText(version)
+        if idx >= 0:
+            self.version.setCurrentIndex(idx)
+        else:
+            self._reload()
 
     def _build_common_tab(self) -> QWidget:
         form = QFormLayout()

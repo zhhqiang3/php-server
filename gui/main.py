@@ -48,12 +48,15 @@ class MainWindow(QMainWindow):
         self.log_page = LogPage()
 
         tabs = QTabWidget()
-        tabs.addTab(self.php_page, "PHP")
+        self.tabs = tabs
         tabs.addTab(self.site_page, "站点")
+        tabs.addTab(self.php_page, "PHP")
         tabs.addTab(self.ini_page, "php.ini")
         tabs.addTab(self.nginx_page, "Nginx")
         tabs.addTab(self.hosts_page, "Hosts")
         tabs.addTab(self.log_page, "日志")
+        # php.ini 页不直接显示，从 PHP 列表点「查看配置」进入
+        tabs.setTabVisible(self._index_of(tabs, self.ini_page), False)
         tabs.currentChanged.connect(self._on_tab)
         self.setCentralWidget(tabs)
 
@@ -61,7 +64,32 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
         self.php_page.changed.connect(self._sync)
+        # PHP 列表点「查看配置」-> 切到 php.ini 页
+        self.php_page.view_ini_requested.connect(self.show_ini)
+        # php.ini 页点「返回」-> 回到 PHP 列表
+        self.ini_page.closed.connect(self.show_php)
         self._sync()
+
+    @staticmethod
+    def _index_of(tabs: QTabWidget, widget) -> int:
+        for i in range(tabs.count()):
+            if tabs.widget(i) is widget:
+                return i
+        return -1
+
+    def show_ini(self, version: str) -> None:
+        """打开 php.ini 配置页并定位到指定版本。"""
+        idx = self._index_of(self.tabs, self.ini_page)
+        if idx < 0:
+            return
+        self.tabs.setCurrentIndex(idx)
+        self.ini_page.show_version(version)
+
+    def show_php(self) -> None:
+        """回到 PHP 列表页。"""
+        idx = self._index_of(self.tabs, self.php_page)
+        if idx >= 0:
+            self.tabs.setCurrentIndex(idx)
 
     def _build_menus(self) -> None:
         quit_action = QAction("退出", self)
@@ -107,17 +135,18 @@ class MainWindow(QMainWindow):
         apply_appearance(QApplication.instance())
 
     def _on_tab(self, index: int) -> None:
-        if index == 0:
+        widget = self.tabs.widget(index)
+        if widget is self.php_page:
             self.php_page.refresh()
-        elif index == 1:
+        elif widget is self.site_page:
             self.site_page.refresh()
-        elif index == 2:
+        elif widget is self.ini_page:
             self.ini_page.refresh()
-        elif index == 3:
+        elif widget is self.nginx_page:
             self.nginx_page.refresh()
-        elif index == 4:
+        elif widget is self.hosts_page:
             self.hosts_page.refresh()
-        elif index == 5:
+        elif widget is self.log_page:
             self.log_page.rescan()
 
     def _sync(self) -> None:

@@ -41,6 +41,14 @@ data/sites/<名>/     每站点：site.json（元数据）+ site.conf（nginx �
 data/www/            默认网站目录
 ```
 
+## 界面结构
+
+页签顺序：**站点 → PHP → php.ini → Nginx → Hosts → 日志**
+
+- **站点**（第一个页签）：站点列表、增删改弹窗、独立 nginx 配置片段、启动/停止 Nginx 与 php-cgi
+- **PHP**：已安装版本列表；点「查看配置…」或双击某一行进入该版本的 php.ini 配置页
+- **php.ini**：默认不在页签栏里显示（隐藏），只从 PHP 列表进入；页面右上角有「返回 PHP 列表」按钮
+
 ## 说明
 
 - 每个 PHP 版本一个 fastcgi 端口，默认 `9000 + 主版本*100 + 次版本`（8.3.36 → 9803、8.4.27 → 9804）；分配结果记在 `config.yaml` 的 `php.cgi_ports` 里，同一版本始终用同一个端口

@@ -68,3 +68,22 @@ def test_remove_site_version_removes(qapp, sandbox, fake_php, page):
     page.remove()
     assert version not in PHPManager().installed()
     assert page.list.rowCount() == 1
+
+
+def test_view_ini_emits_version(qapp, sandbox, fake_php, page):
+    """点「查看配置」应发出带版本号的信号。"""
+    page.refresh()
+    page.list.selectRow(0)
+    version = page.list.item(0, 0).text()
+    got = []
+    page.view_ini_requested.connect(lambda v: got.append(v))
+    page.view_ini()
+    assert got == [version]
+
+
+def test_view_ini_without_selection(qapp, sandbox, fake_php, page):
+    got = []
+    page.view_ini_requested.connect(lambda v: got.append(v))
+    page.list.setCurrentCell(-1, -1)
+    page.view_ini()
+    assert got == []

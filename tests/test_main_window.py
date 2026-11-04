@@ -55,7 +55,60 @@ def test_main_window_builds(qapp, sandbox, fake_php, monkeypatch):
     tabs = win.centralWidget()
     assert tabs.count() == 6
     titles = [tabs.tabText(i) for i in range(tabs.count())]
-    assert titles == ["PHP", "站点", "php.ini", "Nginx", "Hosts", "日志"]
+    assert titles == ["站点", "PHP", "php.ini", "Nginx", "Hosts", "日志"]
+
+
+def test_ini_tab_hidden_by_default(qapp, sandbox, fake_php, monkeypatch):
+    """php.ini 页默认不显示，只从 PHP 列表进入。"""
+    import core.nginx_manager as nm
+
+    monkeypatch.setattr(nm.NginxManager, "running", lambda self: False)
+    monkeypatch.setattr(nm.NginxManager, "version", lambda self: None)
+    monkeypatch.setattr(nm.NginxManager, "installed", lambda self: False)
+
+    from gui.main import MainWindow
+
+    win = MainWindow()
+    tabs = win.centralWidget()
+    ini_idx = win._index_of(tabs, win.ini_page)
+    assert ini_idx >= 0
+    assert tabs.isTabVisible(ini_idx) is False
+    # 可见页签里没有 php.ini
+    visible = [tabs.tabText(i) for i in range(tabs.count()) if tabs.isTabVisible(i)]
+    assert "php.ini" not in visible
+
+
+def test_view_ini_navigates_to_ini_page(qapp, sandbox, fake_php, monkeypatch):
+    """PHP 列表点「查看配置」跳到 php.ini 页并定位版本。"""
+    import core.nginx_manager as nm
+
+    monkeypatch.setattr(nm.NginxManager, "running", lambda self: False)
+    monkeypatch.setattr(nm.NginxManager, "version", lambda self: None)
+    monkeypatch.setattr(nm.NginxManager, "installed", lambda self: False)
+
+    from gui.main import MainWindow
+
+    win = MainWindow()
+    tabs = win.centralWidget()
+    win.show_ini("8.4.27")
+    assert tabs.currentIndex() == win._index_of(tabs, win.ini_page)
+    assert win.ini_page.version.currentText() == "8.4.27"
+
+
+def test_ini_back_returns_to_php(qapp, sandbox, fake_php, monkeypatch):
+    import core.nginx_manager as nm
+
+    monkeypatch.setattr(nm.NginxManager, "running", lambda self: False)
+    monkeypatch.setattr(nm.NginxManager, "version", lambda self: None)
+    monkeypatch.setattr(nm.NginxManager, "installed", lambda self: False)
+
+    from gui.main import MainWindow
+
+    win = MainWindow()
+    tabs = win.centralWidget()
+    win.show_ini("8.4.27")
+    win.show_php()
+    assert tabs.currentIndex() == win._index_of(tabs, win.php_page)
 
 
 def test_main_window_switch_theme(qapp, sandbox, fake_php, monkeypatch):
