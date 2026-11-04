@@ -184,7 +184,7 @@ class SitePage(QWidget):
         names = [s["name"] for s in self.sites.list_sites()]
         if site["name"] in names:
             self.table.selectRow(names.index(site["name"]))
-        self.window().statusBar().showMessage(f"站点 {site['name']} 已添加，记得重载 Nginx", 5000)
+        self._apply_changes(f"站点 {site['name']} 已添加")
 
     def edit(self) -> None:
         name = self._selected_name()
@@ -204,7 +204,27 @@ class SitePage(QWidget):
         ):
             self._sync_conf_fields(name)
         self.refresh()
-        self.window().statusBar().showMessage("站点信息已更新，记得重载 Nginx", 5000)
+        self._apply_changes("站点信息已更新")
+
+    def _apply_changes(self, message: str) -> None:
+        """站点增改后立刻生效：Nginx 在跑就重载配置并对齐 php-cgi。
+
+        不重载的话 nginx 内存里还是旧配置，新域名匹配不到任何 server_name，
+        请求会落到该端口的第一个 server 块上，看起来就像"PHP 版本不对"。
+        """
+        if not self.nginx.running():
+            self.window().statusBar().showMessage(f"{message}（Nginx 未运行，启动后生效）", 5000)
+            return
+        try:
+            self.nginx.reload()
+            if self.cgi_check.isChecked():
+                self.cgi.sync_all()
+        except Exception as exc:  # noqa: BLE001
+            _err(self, "重载失败", exc)
+            self._update_cgi_info()
+            return
+        self._update_cgi_info()
+        self.window().statusBar().showMessage(f"{message}，配置已重载并生效", 5000)
 
     def _sync_conf_fields(self, name: str) -> None:
         site = self.sites.get(name)
@@ -248,6 +268,7 @@ class SitePage(QWidget):
         self.refresh()
         # 站点没了，它占用的 hosts 记录也一并清掉
         self._cleanup_hosts(site)
+        self._apply_changes(f"站点 {name} 已删除")
 
     def _cleanup_hosts(self, site: dict | None) -> None:
         """删除本工具写入的 .local 域名记录（只动本工具管理的标记段）。"""

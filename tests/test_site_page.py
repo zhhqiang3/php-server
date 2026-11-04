@@ -27,6 +27,7 @@ def page(qapp, sandbox, fake_php, monkeypatch):
     import core.cgi_manager as cm
 
     calls: list = []
+    nginx_running = {"value": False}
 
     class FakeCgi:
         def cleanup_stale(self):
@@ -71,7 +72,7 @@ def page(qapp, sandbox, fake_php, monkeypatch):
     from core.nginx_manager import NginxManager
 
     monkeypatch.setattr(NginxManager, "__init__", lambda self: None)
-    monkeypatch.setattr(NginxManager, "running", lambda self: False)
+    monkeypatch.setattr(NginxManager, "running", lambda self: nginx_running["value"])
     monkeypatch.setattr(NginxManager, "start", lambda self: calls.append("nginx_start"))
     monkeypatch.setattr(NginxManager, "stop", lambda self: calls.append("nginx_stop"))
     monkeypatch.setattr(NginxManager, "reload", lambda self: calls.append("nginx_reload"))
@@ -87,6 +88,7 @@ def page(qapp, sandbox, fake_php, monkeypatch):
     widget.nginx = NginxManager()
     widget.cgi = FakeCgi()
     widget.calls = calls
+    widget.nginx_running = nginx_running
     return widget
 
 
@@ -221,3 +223,22 @@ def test_remove_site_cleans_hosts(qapp, sandbox, fake_php, page, hosts_file):
     page.remove()
     assert page.sites.get("s1") is None
     assert "s1.local" not in hosts_file.read_text(encoding="utf-8")
+
+
+def test_apply_changes_reloads_when_nginx_running(qapp, sandbox, fake_php, page):
+    """Nginx 在跑时，增删改后要立刻重载，否则新域名匹配不到 server_name。"""
+    _build_ui(page)
+    page.nginx_running["value"] = True
+    page.sites.add("s1", "s1.local", 80, str(sandbox / "w1"), "8.3.36")
+    page.calls.clear()
+    page._apply_changes("站点已添加")
+    assert "nginx_reload" in page.calls
+    assert "sync_all" in page.calls
+
+
+def test_apply_changes_skips_reload_when_nginx_stopped(qapp, sandbox, fake_php, page):
+    _build_ui(page)
+    page.nginx_running["value"] = False
+    page.calls.clear()
+    page._apply_changes("站点已添加")
+    assert "nginx_reload" not in page.calls
