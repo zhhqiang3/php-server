@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable
 
 from PyQt6.QtCore import QThread, pyqtSignal
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QProgressBar, QPushButton, QWidget
 
 
 class DownloadTask(QThread):

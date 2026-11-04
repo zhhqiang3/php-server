@@ -16,10 +16,8 @@ from PyQt6.QtWidgets import (
     QMenu,
     QStatusBar,
     QTabWidget,
-    QWidget,
 )
 
-from core.php_manager import PHPManager
 from gui.appearance import (
     FONT_SIZES,
     THEMES,

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import subprocess
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QHBoxLayout,
@@ -178,4 +178,6 @@ class LogPage(QWidget):
         log = self._current()
         if log is None:
             return
-        QApplication.clipboard().setText(log.read())
+        text = log.read()
+        QApplication.clipboard().setText(text)
+        self.hint.setText(f"已复制 {len(text)} 个字符到剪贴板")
