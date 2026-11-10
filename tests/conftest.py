@@ -50,6 +50,7 @@ def sandbox(tmp_path, monkeypatch):
 
     # GUI 模块引用了 core 类，一并 reload 让它们绑定到新类
     import gui.appearance as gui_appearance
+    import gui.home_page as gui_home
     import gui.hosts_page as gui_hosts
     import gui.ini_page as gui_ini
     import gui.log_page as gui_log
@@ -65,6 +66,7 @@ def sandbox(tmp_path, monkeypatch):
         gui_site_dialog,
         gui_ini,
         gui_nginx,
+        gui_home,
         gui_hosts,
         gui_log,
         gui_appearance,

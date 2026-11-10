@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QTimer, QThread, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QProgressBar, QPushButton, QWidget
 
 
@@ -44,6 +44,7 @@ class DownloadBar(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self.HIDE_DELAY_MS = 2500  # 完成"完成"后停留多久再收起
         self.bar = QProgressBar()
         self.bar.setRange(0, 1000)
         self.bar.setTextVisible(True)
@@ -56,9 +57,12 @@ class DownloadBar(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.bar, 1)
         layout.addWidget(self.cancel_btn)
+        # 平时不占地方：只在有下载任务时出现
+        self.setVisible(False)
 
     def start(self, task: DownloadTask) -> None:
         self.task = task
+        self.setVisible(True)
         self.bar.setValue(0)
         self.bar.setFormat("准备下载…")
         self.cancel_btn.setVisible(True)
@@ -86,6 +90,8 @@ class DownloadBar(QWidget):
             self.bar.setRange(0, 1000)
         self.bar.setValue(1000)
         self.bar.setFormat("完成")
+        # "完成"停留片刻后自动收起
+        QTimer.singleShot(self.HIDE_DELAY_MS, self.hide)
 
     def reset(self, text: str = "就绪") -> None:
         self.task = None
@@ -94,6 +100,7 @@ class DownloadBar(QWidget):
             self.bar.setRange(0, 1000)
         self.bar.setValue(0)
         self.bar.setFormat(text)
+        self.hide()
 
 
 def _mb(n: int) -> str:

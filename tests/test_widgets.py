@@ -73,3 +73,35 @@ def test_reset_clears(qapp):
     assert bar.bar.value() == 0
     assert bar.bar.format() == "失败"
     assert bar.task is None
+
+
+# ---------- 显隐：进度条只在下载时出现 ----------
+
+
+def test_bar_hidden_by_default(qapp):
+    bar = DownloadBar()
+    assert bar.isHidden()
+
+
+def test_start_shows_bar(qapp):
+    task = DownloadTask(lambda progress, cancel: "ok")
+    bar = DownloadBar()
+    bar.start(task)
+    assert not bar.isHidden()
+    task.wait(2000)
+
+
+def test_finished_hides_after_delay(qapp):
+    bar = DownloadBar()
+    bar.HIDE_DELAY_MS = 0
+    bar.show()
+    bar.on_finished()
+    qapp.processEvents()
+    assert bar.isHidden()
+
+
+def test_reset_hides(qapp):
+    bar = DownloadBar()
+    bar.show()
+    bar.reset("失败")
+    assert bar.isHidden()

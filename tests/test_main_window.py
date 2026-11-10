@@ -42,7 +42,7 @@ def test_theme_names_cover_system(qapp, sandbox):
 
 
 def test_main_window_builds(qapp, sandbox, fake_php, monkeypatch):
-    """主窗口能构建，且六个页签都在。"""
+    """主窗口能构建，且七个页签都在。"""
     import core.nginx_manager as nm
 
     monkeypatch.setattr(nm.NginxManager, "running", lambda self: False)
@@ -53,9 +53,9 @@ def test_main_window_builds(qapp, sandbox, fake_php, monkeypatch):
 
     win = MainWindow()
     tabs = win.centralWidget()
-    assert tabs.count() == 6
+    assert tabs.count() == 7
     titles = [tabs.tabText(i) for i in range(tabs.count())]
-    assert titles == ["站点", "PHP", "php.ini", "Nginx", "Hosts", "日志"]
+    assert titles == ["首页", "站点", "PHP", "php.ini", "Nginx", "Hosts", "日志"]
 
 
 def test_ini_tab_hidden_by_default(qapp, sandbox, fake_php, monkeypatch):

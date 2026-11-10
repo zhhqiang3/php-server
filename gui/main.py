@@ -28,6 +28,7 @@ from gui.appearance import (
     save_appearance,
 )
 from gui.hosts_page import HostsPage
+from gui.home_page import HomePage
 from gui.ini_page import IniPage
 from gui.log_page import LogPage
 from gui.nginx_page import NginxPage
@@ -48,9 +49,14 @@ class MainWindow(QMainWindow):
         self.nginx_page = NginxPage()
         self.hosts_page = HostsPage()
         self.log_page = LogPage()
+        # 首页要引用各页取状态，最后构造
+        self.home_page = HomePage(
+            self.site_page, self.php_page, self.nginx_page, self.hosts_page, self.log_page
+        )
 
         tabs = QTabWidget()
         self.tabs = tabs
+        tabs.addTab(self.home_page, "首页")
         tabs.addTab(self.site_page, "站点")
         tabs.addTab(self.php_page, "PHP")
         tabs.addTab(self.ini_page, "php.ini")
@@ -66,6 +72,9 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar())
         self.php_page.changed.connect(self._sync)
+        self.php_page.changed.connect(self.home_page.refresh)
+        # 首页点卡片 -> 跳到对应页签
+        self.home_page.navigate.connect(self._goto_page)
         # PHP 列表点「查看配置」-> 切到 php.ini 页
         self.php_page.view_ini_requested.connect(self.show_ini)
         # php.ini 页点「返回」-> 回到 PHP 列表
@@ -90,6 +99,12 @@ class MainWindow(QMainWindow):
     def show_php(self) -> None:
         """回到 PHP 列表页。"""
         idx = self._index_of(self.tabs, self.php_page)
+        if idx >= 0:
+            self.tabs.setCurrentIndex(idx)
+
+    def _goto_page(self, widget) -> None:
+        """首页卡片跳转：切到目标页签（触发 _on_tab 让目标页自己刷新）。"""
+        idx = self._index_of(self.tabs, widget)
         if idx >= 0:
             self.tabs.setCurrentIndex(idx)
 
@@ -149,7 +164,9 @@ class MainWindow(QMainWindow):
 
     def _on_tab(self, index: int) -> None:
         widget = self.tabs.widget(index)
-        if widget is self.php_page:
+        if widget is self.home_page:
+            self.home_page.refresh()
+        elif widget is self.php_page:
             self.php_page.refresh()
         elif widget is self.site_page:
             self.site_page.refresh()

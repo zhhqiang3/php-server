@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -39,6 +39,8 @@ def build_stylesheet(dark: bool) -> str:
     on_border = "#2ecc71" if dark else "#27ae60"
     on_text = "#2ecc71" if dark else "#1e8449"
     on_hover = "rgba(46,204,113,0.26)" if dark else "rgba(39,174,96,0.22)"
+    card_bg = "#2b2b2b" if dark else "#fafafa"
+    card_title = "#f0f0f0" if dark else "#1c1c1c"
 
     return f"""
     QPushButton {{
@@ -118,6 +120,27 @@ def build_stylesheet(dark: bool) -> str:
     QPushButton[state="off"]:hover {{
         border-color: {muted};
         color: {muted};
+    }}
+
+    QFrame[card="true"] {{
+        background: {card_bg};
+        border: 1px solid {line};
+        border-radius: 8px;
+    }}
+    QFrame[card="true"]:hover {{
+        border-color: {accent};
+    }}
+    QLabel#cardTitle {{
+        font-size: 12pt;
+        font-weight: 600;
+        color: {card_title};
+        background: transparent;
+        border: none;
+    }}
+    QLabel#cardBody {{
+        color: {muted};
+        background: transparent;
+        border: none;
     }}
 
     QTabWidget::pane {{
@@ -210,6 +233,51 @@ class Switch(QPushButton):
     def setChecked(self, checked: bool) -> None:  # noqa: N802 — Qt 命名
         super().setChecked(checked)
         self._restyle()
+
+
+class Card(QFrame):
+    """首页卡片：标题 + 信息行 + 右侧快捷操作，点卡片空白处导航到对应页。"""
+
+    clicked = pyqtSignal()
+
+    def __init__(self, title: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setProperty("card", True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.title_label = QLabel(title)
+        self.title_label.setObjectName("cardTitle")
+
+        self.body = QLabel("")
+        self.body.setObjectName("cardBody")
+        self.body.setWordWrap(True)
+
+        self.actions = QWidget()
+        self.actions_layout = QHBoxLayout(self.actions)
+        self.actions_layout.setContentsMargins(0, 0, 0, 0)
+        self.actions_layout.setSpacing(8)
+
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(12)
+        title_row.addWidget(self.title_label)
+        title_row.addWidget(self.actions, 0, Qt.AlignmentFlag.AlignTop)
+        title_row.addStretch(1)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 10, 14, 12)
+        layout.setSpacing(6)
+        layout.addLayout(title_row)
+        layout.addWidget(self.body)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 — Qt 命名
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
+
+    def add_action(self, btn: QPushButton) -> QPushButton:
+        self.actions_layout.addWidget(btn)
+        return btn
 
 
 class PageHeader(QWidget):

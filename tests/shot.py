@@ -47,7 +47,7 @@ def main() -> None:
     app.processEvents()
 
     tabs = win.tabs
-    order = ["站点", "PHP", "php.ini", "Nginx", "Hosts", "日志"]
+    order = ["首页", "站点", "PHP", "php.ini", "Nginx", "Hosts", "日志"]
     for i in range(tabs.count()):
         tabs.setCurrentIndex(i)
         app.processEvents()
