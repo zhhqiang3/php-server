@@ -40,6 +40,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("PHP / Nginx 管理器")
         self.resize(1080, 720)
+        self._set_app_icon()
 
         self.php_page = PhpPage()
         self.site_page = SitePage(self.php_page.mgr)
@@ -91,6 +92,17 @@ class MainWindow(QMainWindow):
         idx = self._index_of(self.tabs, self.php_page)
         if idx >= 0:
             self.tabs.setCurrentIndex(idx)
+
+    def _set_app_icon(self) -> None:
+        """窗口与任务栏图标：打包用资源内 icon，源码运行用 assets/icon.ico。"""
+        from PyQt6.QtGui import QIcon
+
+        if getattr(sys, "frozen", False):
+            icon_path = Path(sys._MEIPASS) / "icon.ico"
+        else:
+            icon_path = ROOT / "assets" / "icon.ico"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
     def _build_menus(self) -> None:
         quit_action = QAction("退出", self)

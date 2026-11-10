@@ -4,7 +4,7 @@ a = Analysis(
     ["gui/main.py"],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[("assets/icon.ico", ".")],
     hiddenimports=[],
     hookspath=[],
     runtime_hooks=[],
@@ -24,4 +24,5 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,
+    icon="assets/icon.ico",
 )

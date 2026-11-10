@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- Nginx 绿圆底 -->
+  <circle cx="128" cy="128" r="124" fill="#009639"/>
+  <circle cx="128" cy="128" r="124" fill="none" stroke="#007c2e" stroke-width="6"/>
+
+  <!-- PHP 紫齿轮（8 齿） -->
+  <g fill="#777BB4" transform="translate(128 128)">
+    <g id="tooth">
+      <rect x="-11" y="-118" width="22" height="34" rx="7"/>
+    </g>
+    <use href="#tooth" transform="rotate(45)"/>
+    <use href="#tooth" transform="rotate(90)"/>
+    <use href="#tooth" transform="rotate(135)"/>
+    <use href="#tooth" transform="rotate(180)"/>
+    <use href="#tooth" transform="rotate(225)"/>
+    <use href="#tooth" transform="rotate(270)"/>
+    <use href="#tooth" transform="rotate(315)"/>
+    <circle r="102"/>
+    <!-- 中心镂空 -->
+    <circle r="62" fill="#009639"/>
+    <!-- 内圈描边，让镂空边缘有紫色包边 -->
+    <circle r="62" fill="none" stroke="#5a5d8f" stroke-width="5"/>
+  </g>
+
+  <!-- PHP 风格 "P" -->
+  <g fill="#ffffff">
+    <path d="M104 68 h44 a38 38 0 0 1 0 76 h-22 v44 a10 10 0 0 1 -20 0 v-110 a10 10 0 0 1 10 -10 z m22 20 v36 h20 a18 18 0 0 0 0 -36 z"/>
+  </g>
+</svg>
